@@ -5,6 +5,10 @@ on:
     branches: [ "master", "main" ]
   workflow_dispatch:
 
+# إعطاء صلاحية الكتابة لإنشاء الإصدار ورفع ملف الـ IPA
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: macos-14
@@ -59,7 +63,6 @@ jobs:
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/heads/')
         with:
           tag_name: v1.0-${{ github.run_number }}
           name: idk Plus v1.0 (Build ${{ github.run_number }})
