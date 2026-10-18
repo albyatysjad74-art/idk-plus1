@@ -3,7 +3,7 @@ import SwiftUI
 struct ContentView: View {
     @StateObject private var viewModel = StoreViewModel()
     
-    // درجات الأزرق الملكي المريح للعين
+    // اللون الأزرق المريح
     private let primaryBlue = Color(red: 0.10, green: 0.46, blue: 0.92)
     private let softBackground = Color(red: 0.95, green: 0.96, blue: 0.98)
 
@@ -13,7 +13,7 @@ struct ContentView: View {
                 softBackground.ignoresSafeArea()
 
                 VStack(spacing: 0) {
-                    // شريط العداد الإحصائي المباشر
+                    // شريط العداد الإحصائي
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("المصادر المتصلة: 2")
@@ -26,7 +26,6 @@ struct ContentView: View {
 
                         Spacer()
 
-                        // عداد التطبيقات
                         HStack(spacing: 6) {
                             Image(systemName: "square.stack.3d.up.fill")
                                 .foregroundColor(primaryBlue)
@@ -43,14 +42,14 @@ struct ContentView: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
 
-                    // حالة التحميل أو القائمة
+                    // المحتوى
                     if viewModel.isLoading && viewModel.apps.isEmpty {
                         Spacer()
                         VStack(spacing: 12) {
                             ProgressView()
                                 .tint(primaryBlue)
                                 .scaleEffect(1.2)
-                            Text("جاري سحب التطبيقات وتحديث المتجر...")
+                            Text("جاري سحب التطبيقات...")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                         }
@@ -93,29 +92,28 @@ struct ContentView: View {
     }
 }
 
-// تصميم بطاقة التطبيق المنفردة بنمط البطاقات الحديث
+// تصميم بطاقة التطبيق
 struct AppCardView: View {
     let app: AppItem
     let accentColor: Color
 
     var body: some View {
         HStack(spacing: 12) {
-            // صورة أيقونة التطبيق
+            // معالجة صورة الأيقونة بدون أخطاء switch
             AsyncImage(url: app.iconURL) { phase in
-                switch phase {
-                case .success(let img):
+                if let img = phase.image {
                     img.resizable().scaledToFill()
-                case .empty:
-                    ZStack {
-                        accentColor.opacity(0.08)
-                        ProgressView().tint(accentColor)
-                    }
-                case .failure, @unknown default:
+                } else if phase.error != nil {
                     ZStack {
                         accentColor.opacity(0.12)
                         Image(systemName: "arrow.down.app.fill")
                             .foregroundColor(accentColor)
                             .font(.system(size: 22))
+                    }
+                } else {
+                    ZStack {
+                        accentColor.opacity(0.08)
+                        ProgressView().tint(accentColor)
                     }
                 }
             }
@@ -131,7 +129,6 @@ struct AppCardView: View {
                         .foregroundColor(.primary)
                         .lineLimit(1)
 
-                    // شارة السورس
                     Text(app.sourceBadge)
                         .font(.system(size: 8, weight: .bold))
                         .padding(.horizontal, 5)
