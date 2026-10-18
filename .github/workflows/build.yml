@@ -13,19 +13,29 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Build Real iOS Binary
+      - name: Build Real iOS Binary & IPA
         run: |
-          # بناء التطبيق كملف تنفيذي حقيقي لمعمارية الآيفون
-          swift build -c release --triple arm64-apple-ios15.0
-
-          # إنشاء مجلدات الحزمة الرسمية
           mkdir -p Payload/idkPlus.app
 
-          # نسخ الملف التنفيذي المترجم إلى قلب الحزمة
-          cp .build/arm64-apple-ios15.0/release/idkPlus Payload/idkPlus.app/idkPlus
+          # البحث عن ملفات Swift الخاصة بالمتجر وتجميعها
+          SWIFT_FILES=$(find . -maxdepth 3 -name "*.swift" ! -name "Package.swift" ! -path "*/.*/*" ! -path "*/test/*")
+          echo "Found Swift files:"
+          echo "$SWIFT_FILES"
+
+          # ترجمة الكود إلى ملف تنفيذي أصلي لمعمارية الآيفون arm64
+          xcrun -sdk iphoneos swiftc $SWIFT_FILES \
+            -target arm64-apple-ios15.0 \
+            -parse-as-library \
+            -emit-executable \
+            -o Payload/idkPlus.app/idkPlus \
+            -framework SwiftUI \
+            -framework Foundation \
+            -framework UIKit
+
+          # ضبط صلاحيات التشغيل للملف الثنائي
           chmod +x Payload/idkPlus.app/idkPlus
 
-          # إنشاء ملف Info.plist الرسمي بالبندل والاسم المطلوب
+          # إنشاء ملف Info.plist الرسمي بالتسمية والبندل المطلوب
           cat << 'EOF' > Payload/idkPlus.app/Info.plist
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -55,10 +65,10 @@ jobs:
           </plist>
           EOF
 
-          # ضغط الملف بصيغة IPA
+          # حزم التطبيق بصيغة IPA
           zip -qry idkPlus.ipa Payload
 
-      - name: Upload IPA
+      - name: Upload IPA File
         uses: actions/upload-artifact@v4
         with:
           name: idkPlus-IPA
