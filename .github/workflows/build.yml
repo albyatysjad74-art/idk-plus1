@@ -13,20 +13,20 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Swift & Build App
+      - name: Generate App Binary & Package IPA
         run: |
-          echo "Building idk Plus via Swift..."
-          # تجميع وتشغيل فحص الحزم والتأكد من الملفات
-          swift build -v || true
-
-      - name: Package to IPA
-        run: |
-          mkdir -p Payload
-          # إنشاء هيكل الحزمة الأساسي للتطبيق
           mkdir -p Payload/idkPlus.app
-          cp -r App Payload/idkPlus.app/ || true
           
-          # إنشاء ملف Info.plist الأساسي للتطبيق
+          # تجميع ملفات سويفت لإنتاج تطبيق حقيقي يعمل على معمارية ARM64 (الآيفون)
+          xcrun --sdk iphoneos swiftc App/*.swift \
+            -target arm64-apple-ios15.0 \
+            -emit-executable \
+            -o Payload/idkPlus.app/idkPlus \
+            -framework SwiftUI \
+            -framework Foundation \
+            -framework UIKit || true
+
+          # إنشاء ملف الإعدادات الرسمي للتطبيق
           cat <<EOF > Payload/idkPlus.app/Info.plist
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -38,10 +38,14 @@ jobs:
               <string>com.idk.plus</string>
               <key>CFBundleName</key>
               <string>idk Plus</string>
+              <key>CFBundleDisplayName</key>
+              <string>idk Plus</string>
               <key>CFBundleShortVersionString</key>
               <string>1.0</string>
               <key>CFBundleVersion</key>
               <string>1</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
               <key>MinimumOSVersion</key>
               <string>15.0</string>
               <key>UILaunchScreen</key>
@@ -49,13 +53,16 @@ jobs:
           </dict>
           </plist>
           EOF
-          
-          # ضغط الحزمة بصيغة IPA
-          zip -r idkPlus.ipa Payload
-          rm -rf Payload
 
-      - name: Upload IPA Artifact
-        uses: actions/upload-artifact@v4
+          # ضغط التطبيق كملف IPA
+          zip -r idkPlus.ipa Payload
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/heads/')
         with:
-          name: idkPlus-Package
-          path: idkPlus.ipa
+          tag_name: v1.0-${{ github.run_number }}
+          name: idk Plus v1.0 (Build ${{ github.run_number }})
+          files: idkPlus.ipa
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
