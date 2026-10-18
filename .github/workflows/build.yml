@@ -5,10 +5,6 @@ on:
     branches: [ "master", "main" ]
   workflow_dispatch:
 
-# إعطاء صلاحية الكتابة لإنشاء الإصدار ورفع ملف الـ IPA
-permissions:
-  contents: write
-
 jobs:
   build:
     runs-on: macos-14
@@ -21,7 +17,7 @@ jobs:
         run: |
           mkdir -p Payload/idkPlus.app
           
-          # تجميع ملفات سويفت لإنتاج تطبيق حقيقي يعمل على معمارية ARM64 (الآيفون)
+          # تجميع كود التطبيق لمعمارية الآيفون
           xcrun --sdk iphoneos swiftc App/*.swift \
             -target arm64-apple-ios15.0 \
             -emit-executable \
@@ -30,7 +26,7 @@ jobs:
             -framework Foundation \
             -framework UIKit || true
 
-          # إنشاء ملف الإعدادات الرسمي للتطبيق
+          # ملف إعدادات التطبيق
           cat <<EOF > Payload/idkPlus.app/Info.plist
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -58,14 +54,12 @@ jobs:
           </plist>
           EOF
 
-          # ضغط التطبيق كملف IPA
+          # ضغط التطبيق بصيغة IPA
           zip -r idkPlus.ipa Payload
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+      - name: Upload IPA File
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: v1.0-${{ github.run_number }}
-          name: idk Plus v1.0 (Build ${{ github.run_number }})
-          files: idkPlus.ipa
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: idkPlus-App-IPA
+          path: idkPlus.ipa
+          retention-days: 7
