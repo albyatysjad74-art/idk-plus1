@@ -7,85 +7,61 @@ class StoreViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var searchText: String = ""
 
-    // روابط المصادر الرسمية لمتجر idk Plus
-    private let source1URL = "https://raw.githubusercontent.com/ikiraplus/ipastore/main/jom.json"
-    private let source2URL = "https://ipaomtk.com/wp-json/wp/v2/posts?per_page=50"
+    // رابط سورس كيرا المباشر (يحتوي أكثر من 1100 تطبيق ولعبة)
+    private let kiraSourceURL = "https://raw.githubusercontent.com/ikiraplus/ipastore/main/jom.json"
 
-    // تصفية التطبيقات حسب شريط البحث
+    // تصفية التطبيقات للبحث الفوري
     var filteredApps: [AppItem] {
-        if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if query.isEmpty {
             return apps
         } else {
             return apps.filter { app in
-                app.name.localizedCaseInsensitiveContains(searchText) ||
-                app.description.localizedCaseInsensitiveContains(searchText)
+                app.name.localizedCaseInsensitiveContains(query) ||
+                app.description.localizedCaseInsensitiveContains(query)
             }
         }
     }
 
-    // جلب ودمج المصدرين في نفس الوقت
-    func loadAllSources() async {
+    // جلب جميع التطبيقات من السورس
+    func loadKiraApps() async {
         isLoading = true
-        var allApps: [AppItem] = []
+        guard let url = URL(string: kiraSourceURL) else {
+            isLoading = false
+            return
+        }
 
-        async let fetchSource1 = getJSONApps()
-        async let fetchSource2 = getWPApps()
-
-        let (res1, res2) = await (fetchSource1, fetchSource2)
-        allApps.append(contentsOf: res1)
-        allApps.append(contentsOf: res2)
-
-        self.apps = allApps
-        self.isLoading = false
-    }
-
-    // معالجة بيانات سورس JSON
-    private func getJSONApps() async -> [AppItem] {
-        guard let url = URL(string: source1URL) else { return [] }
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
-            // تصحيح: استخدام from: data بدلاً من data: data
-            let items = try JSONDecoder().decode([JSONStoreItem].self, from: data)
-            return items.enumerated().map { idx, item in
-                AppItem(
-                    id: "json-\(idx)",
-                    name: item.name ?? "تطبيق غير معروف",
-                    version: item.version ?? "1.0",
-                    description: item.description ?? "لا يتوفر وصف لهذا التطبيق",
-                    iconURL: URL(string: item.icon ?? ""),
-                    downloadURL: URL(string: item.downloadLink ?? item.url ?? ""),
-                    sourceBadge: "idk JSON"
-                )
+            
+            // قراءة مرنة لضمان جلب كل العناصر دون استثناء حتى مع اختلاف مسميات المفاتيح
+            if let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+                var loadedItems: [AppItem] = []
+                loadedItems.reserveCapacity(jsonArray.count)
+
+                for (idx, dict) in jsonArray.enumerated() {
+                    let name = dict["name"] as? String ?? dict["title"] as? String ?? "تطبيق بلس"
+                    let version = dict["version"] as? String ?? dict["ver"] as? String ?? "1.0"
+                    let desc = dict["description"] as? String ?? dict["desc"] as? String ?? "تطبيق من سورس كيرا بلس"
+                    let iconStr = dict["icon"] as? String ?? dict["image"] as? String ?? ""
+                    let downloadStr = dict["downloadLink"] as? String ?? dict["link"] as? String ?? dict["url"] as? String ?? dict["ipa"] as? String ?? ""
+
+                    loadedItems.append(AppItem(
+                        id: "kira-\(idx)",
+                        name: name,
+                        version: version,
+                        description: desc,
+                        iconURL: URL(string: iconStr),
+                        downloadURL: URL(string: downloadStr)
+                    ))
+                }
+
+                self.apps = loadedItems
             }
         } catch {
-            return []
+            print("خطأ في قراءة سورس كيرا: \(error)")
         }
-    }
 
-    // معالجة بيانات سورس IPAOMTK
-    private func getWPApps() async -> [AppItem] {
-        guard let url = URL(string: source2URL) else { return [] }
-        do {
-            let (data, _) = try await URLSession.shared.data(from: url)
-            // تصحيح: استخدام from: data بدلاً من data: data
-            let posts = try JSONDecoder().decode([WPPost].self, from: data)
-            return posts.map { post in
-                let cleanName = TextCleaner.cleanHTML(post.title.rendered)
-                let cleanDesc = TextCleaner.cleanHTML(post.excerpt.rendered)
-                let imgURL = post.yoast_head_json?.og_image?.first?.url ?? ""
-
-                return AppItem(
-                    id: "wp-\(post.id)",
-                    name: cleanName.isEmpty ? "تطبيق بلس" : cleanName,
-                    version: "أحدث إصدار",
-                    description: cleanDesc.isEmpty ? "اضغط على تثبيت لمعاينة التفاصيل والتحميل" : cleanDesc,
-                    iconURL: URL(string: imgURL),
-                    downloadURL: URL(string: post.link),
-                    sourceBadge: "IPAOMTK"
-                )
-            }
-        } catch {
-            return []
-        }
+        isLoading = false
     }
 }
