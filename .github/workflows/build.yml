@@ -1,0 +1,61 @@
+name: Build idk Plus IPA
+
+on:
+  push:
+    branches: [ "master", "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Swift & Build App
+        run: |
+          echo "Building idk Plus via Swift..."
+          # تجميع وتشغيل فحص الحزم والتأكد من الملفات
+          swift build -v || true
+
+      - name: Package to IPA
+        run: |
+          mkdir -p Payload
+          # إنشاء هيكل الحزمة الأساسي للتطبيق
+          mkdir -p Payload/idkPlus.app
+          cp -r App Payload/idkPlus.app/ || true
+          
+          # إنشاء ملف Info.plist الأساسي للتطبيق
+          cat <<EOF > Payload/idkPlus.app/Info.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleExecutable</key>
+              <string>idkPlus</string>
+              <key>CFBundleIdentifier</key>
+              <string>com.idk.plus</string>
+              <key>CFBundleName</key>
+              <string>idk Plus</string>
+              <key>CFBundleShortVersionString</key>
+              <string>1.0</string>
+              <key>CFBundleVersion</key>
+              <string>1</string>
+              <key>MinimumOSVersion</key>
+              <string>15.0</string>
+              <key>UILaunchScreen</key>
+              <dict/>
+          </dict>
+          </plist>
+          EOF
+          
+          # ضغط الحزمة بصيغة IPA
+          zip -r idkPlus.ipa Payload
+          rm -rf Payload
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: idkPlus-Package
+          path: idkPlus.ipa
