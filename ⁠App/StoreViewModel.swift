@@ -44,7 +44,8 @@ class StoreViewModel: ObservableObject {
         guard let url = URL(string: source1URL) else { return [] }
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
-            let items = try JSONDecoder().decode([JSONStoreItem].self, data: data)
+            // تصحيح: استخدام from: data بدلاً من data: data
+            let items = try JSONDecoder().decode([JSONStoreItem].self, from: data)
             return items.enumerated().map { idx, item in
                 AppItem(
                     id: "json-\(idx)",
@@ -66,7 +67,8 @@ class StoreViewModel: ObservableObject {
         guard let url = URL(string: source2URL) else { return [] }
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
-            let posts = try JSONDecoder().decode([WPPost].self, data: data)
+            // تصحيح: استخدام from: data بدلاً من data: data
+            let posts = try JSONDecoder().decode([WPPost].self, from: data)
             return posts.map { post in
                 let cleanName = TextCleaner.cleanHTML(post.title.rendered)
                 let cleanDesc = TextCleaner.cleanHTML(post.excerpt.rendered)
