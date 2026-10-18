@@ -13,21 +13,20 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Generate App Binary & Package IPA
+      - name: Build Real iOS Binary
         run: |
-          mkdir -p Payload/idkPlus.app
-          
-          # تجميع كود التطبيق لمعمارية الآيفون
-          xcrun --sdk iphoneos swiftc App/*.swift \
-            -target arm64-apple-ios15.0 \
-            -emit-executable \
-            -o Payload/idkPlus.app/idkPlus \
-            -framework SwiftUI \
-            -framework Foundation \
-            -framework UIKit || true
+          # بناء التطبيق كملف تنفيذي حقيقي لمعمارية الآيفون
+          swift build -c release --triple arm64-apple-ios15.0
 
-          # ملف إعدادات التطبيق
-          cat <<EOF > Payload/idkPlus.app/Info.plist
+          # إنشاء مجلدات الحزمة الرسمية
+          mkdir -p Payload/idkPlus.app
+
+          # نسخ الملف التنفيذي المترجم إلى قلب الحزمة
+          cp .build/arm64-apple-ios15.0/release/idkPlus Payload/idkPlus.app/idkPlus
+          chmod +x Payload/idkPlus.app/idkPlus
+
+          # إنشاء ملف Info.plist الرسمي بالبندل والاسم المطلوب
+          cat << 'EOF' > Payload/idkPlus.app/Info.plist
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
@@ -40,26 +39,27 @@ jobs:
               <string>idk Plus</string>
               <key>CFBundleDisplayName</key>
               <string>idk Plus</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
               <key>CFBundleShortVersionString</key>
               <string>1.0</string>
               <key>CFBundleVersion</key>
               <string>1</string>
-              <key>CFBundlePackageType</key>
-              <string>APPL</string>
               <key>MinimumOSVersion</key>
               <string>15.0</string>
+              <key>LSRequiresIPhoneOS</key>
+              <true/>
               <key>UILaunchScreen</key>
               <dict/>
           </dict>
           </plist>
           EOF
 
-          # ضغط التطبيق بصيغة IPA
-          zip -r idkPlus.ipa Payload
+          # ضغط الملف بصيغة IPA
+          zip -qry idkPlus.ipa Payload
 
-      - name: Upload IPA File
+      - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: idkPlus-App-IPA
+          name: idkPlus-IPA
           path: idkPlus.ipa
-          retention-days: 7
