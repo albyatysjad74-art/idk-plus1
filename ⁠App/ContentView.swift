@@ -2,88 +2,102 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var viewModel = StoreViewModel()
-    
-    // اللون الأزرق المريح
-    private let primaryBlue = Color(red: 0.10, green: 0.46, blue: 0.92)
-    private let softBackground = Color(red: 0.95, green: 0.96, blue: 0.98)
+
+    // ألوان الأزرق الليلي المريحة جداً للعين
+    private let bgDeepBlue = Color(red: 0.04, green: 0.08, blue: 0.16)      // خلفية داكنة مريحة #0A1428
+    private let cardNavy = Color(red: 0.09, green: 0.15, blue: 0.27)        // بطاقة كحلية هادئة #172645
+    private let cardBorder = Color(red: 0.15, green: 0.24, blue: 0.40)      // إطار خفيف للبطاقة
+    private let textTitle = Color(red: 0.96, green: 0.97, blue: 1.0)        // نصوص بيضاء ناصعة
+    private let textSecondary = Color(red: 0.65, green: 0.74, blue: 0.88)    // رمادي-أزرق هادئ للوصف
+    private let vibrantBlue = Color(red: 0.12, green: 0.53, blue: 0.98)      // أزرق زر التحميل والأيقونات
 
     var body: some View {
         NavigationView {
             ZStack {
-                softBackground.ignoresSafeArea()
+                bgDeepBlue.ignoresSafeArea()
 
                 VStack(spacing: 0) {
-                    // شريط العداد الإحصائي
+                    // الشريط الإحصائي العلوي
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("المصادر المتصلة: 2")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                            Text("التطبيقات المتوفرة")
+                            Text("سورس كيرا بلس")
+                                .font(.caption.bold())
+                                .foregroundColor(vibrantBlue)
+                            Text("التطبيقات والألعاب المتاحة")
                                 .font(.headline.bold())
-                                .foregroundColor(.primary)
+                                .foregroundColor(textTitle)
                         }
 
                         Spacer()
 
+                        // عداد التطبيقات (يعرض أكثر من 1100 تطبيق)
                         HStack(spacing: 6) {
-                            Image(systemName: "square.stack.3d.up.fill")
-                                .foregroundColor(primaryBlue)
+                            Image(systemName: "gamecontroller.fill")
+                                .foregroundColor(.white)
                                 .font(.caption)
                             Text("\(viewModel.filteredApps.count) تطبيق")
                                 .font(.footnote.bold())
-                                .foregroundColor(primaryBlue)
+                                .foregroundColor(.white)
                         }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(primaryBlue.opacity(0.12))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 7)
+                        .background(vibrantBlue)
                         .clipShape(Capsule())
+                        .shadow(color: vibrantBlue.opacity(0.4), radius: 6, x: 0, y: 3)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 10)
 
-                    // المحتوى
+                    // عرض المحتوى
                     if viewModel.isLoading && viewModel.apps.isEmpty {
                         Spacer()
-                        VStack(spacing: 12) {
+                        VStack(spacing: 14) {
                             ProgressView()
-                                .tint(primaryBlue)
-                                .scaleEffect(1.2)
-                            Text("جاري سحب التطبيقات...")
+                                .tint(vibrantBlue)
+                                .scaleEffect(1.4)
+                            Text("جاري تحميل أكثر من 1100 تطبيق ولعبة...")
                                 .font(.subheadline)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(textSecondary)
                         }
                         Spacer()
                     } else if viewModel.filteredApps.isEmpty {
                         Spacer()
                         VStack(spacing: 8) {
                             Image(systemName: "magnifyingglass")
-                                .font(.system(size: 38))
-                                .foregroundColor(.secondary.opacity(0.4))
-                            Text("لا توجد نتائج مطابقة لبحثك")
+                                .font(.system(size: 42))
+                                .foregroundColor(textSecondary.opacity(0.5))
+                            Text("لا توجد لعبة أو تطبيق بهذا الاسم")
                                 .font(.subheadline)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(textSecondary)
                         }
                         Spacer()
                     } else {
                         List(viewModel.filteredApps) { app in
-                            AppCardView(app: app, accentColor: primaryBlue)
-                                .listRowBackground(Color.white)
-                                .listRowSeparator(.hidden)
-                                .padding(.vertical, 4)
+                            KiraAppCard(
+                                app: app,
+                                cardBg: cardNavy,
+                                borderColor: cardBorder,
+                                titleColor: textTitle,
+                                subtitleColor: textSecondary,
+                                accentColor: vibrantBlue
+                            )
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 5, trailing: 14))
                         }
                         .listStyle(.plain)
                         .refreshable {
-                            await viewModel.loadAllSources()
+                            await viewModel.loadKiraApps()
                         }
                     }
                 }
             }
             .navigationTitle("idk Plus")
-            .searchable(text: $viewModel.searchText, prompt: "ابحث في idk Plus...")
+            .searchable(text: $viewModel.searchText, prompt: "ابحث بين 1100+ تطبيق ولعبة...")
+            .preferredColorScheme(.dark) // يمنع خربطة الخطوط مع خلفيات النظام في TrollStore
             .task {
                 if viewModel.apps.isEmpty {
-                    await viewModel.loadAllSources()
+                    await viewModel.loadKiraApps()
                 }
             }
         }
@@ -92,83 +106,83 @@ struct ContentView: View {
     }
 }
 
-// تصميم بطاقة التطبيق
-struct AppCardView: View {
+// تصميم بطاقة التطبيق الزرقاء العصرية
+struct KiraAppCard: View {
     let app: AppItem
+    let cardBg: Color
+    let borderColor: Color
+    let titleColor: Color
+    let subtitleColor: Color
     let accentColor: Color
 
     var body: some View {
         HStack(spacing: 12) {
-            // معالجة صورة الأيقونة بدون أخطاء switch
+            // أيقونة التطبيق
             AsyncImage(url: app.iconURL) { phase in
                 if let img = phase.image {
                     img.resizable().scaledToFill()
                 } else if phase.error != nil {
                     ZStack {
-                        accentColor.opacity(0.12)
-                        Image(systemName: "arrow.down.app.fill")
+                        accentColor.opacity(0.2)
+                        Image(systemName: "app.fill")
                             .foregroundColor(accentColor)
-                            .font(.system(size: 22))
+                            .font(.system(size: 24))
                     }
                 } else {
                     ZStack {
-                        accentColor.opacity(0.08)
+                        cardBg
                         ProgressView().tint(accentColor)
                     }
                 }
             }
             .frame(width: 58, height: 58)
-            .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
-            .shadow(color: Color.black.opacity(0.04), radius: 3, x: 0, y: 2)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(borderColor, lineWidth: 1)
+            )
 
-            // بيانات التطبيق
+            // نصوص التطبيق عالية التباين والوضوح
             VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Text(app.name)
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(.primary)
-                        .lineLimit(1)
-
-                    Text(app.sourceBadge)
-                        .font(.system(size: 8, weight: .bold))
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
-                        .background(Color.gray.opacity(0.12))
-                        .foregroundColor(.secondary)
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
-                }
+                Text(app.name)
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(titleColor)
+                    .lineLimit(1)
 
                 Text(app.description)
                     .font(.system(size: 11))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(subtitleColor)
                     .lineLimit(2)
 
                 Text("الإصدار: \(app.version)")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(accentColor.opacity(0.9))
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(accentColor)
             }
 
             Spacer()
 
-            // زر التثبيت
-            if let targetURL = app.downloadURL {
+            // زر التثبيت الأزرق
+            if let targetURL = app.downloadURL, !targetURL.absoluteString.isEmpty {
                 Link(destination: targetURL) {
                     Text("تثبيت")
                         .font(.system(size: 12, weight: .bold))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 6)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 7)
                         .background(accentColor)
                         .foregroundColor(.white)
                         .clipShape(Capsule())
-                        .shadow(color: accentColor.opacity(0.25), radius: 4, x: 0, y: 2)
+                        .shadow(color: accentColor.opacity(0.35), radius: 4, x: 0, y: 2)
                 }
             }
         }
-        .padding(10)
+        .padding(11)
         .background(
-            RoundedRectangle(cornerRadius: 15, style: .continuous)
-                .fill(Color.white)
-                .shadow(color: Color.black.opacity(0.03), radius: 4, x: 0, y: 1)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(cardBg)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(borderColor, lineWidth: 1)
+                )
         )
     }
 }
