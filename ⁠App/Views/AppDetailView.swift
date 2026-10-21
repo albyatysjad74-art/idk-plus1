@@ -2,12 +2,8 @@ import SwiftUI
 
 struct AppDetailView: View {
     let app: AppItem
-
-    @State private var isDownloading = false
-    @State private var isSigning = false
-    @State private var downloadProgress: Double = 0.0
-    @State private var signedIPAPath: URL?
-    @State private var statusMessage = ""
+    @ObservedObject var dlManager = DownloadManager.shared
+    @State private var shareURL: URL?
     @State private var showShareSheet = false
 
     var body: some View {
@@ -16,6 +12,7 @@ struct AppDetailView: View {
 
             ScrollView {
                 VStack(spacing: 18) {
+                    // تفاصيل التطبيق العلوية
                     HStack(spacing: 16) {
                         AsyncImage(url: app.iconURL) { phase in
                             if let img = phase.image {
@@ -27,7 +24,7 @@ struct AppDetailView: View {
                             }
                         }
                         .frame(width: 75, height: 75)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .cornerRadius(16)
 
                         VStack(alignment: .leading, spacing: 5) {
                             Text(app.name)
@@ -42,42 +39,103 @@ struct AppDetailView: View {
                     }
                     .padding()
                     .background(AppTheme.cardNavy)
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .cornerRadius(16)
 
-                    // قسم التحميل والتوقيع
-                    if let targetURL = app.downloadURL, !targetURL.absoluteString.isEmpty {
-                        VStack(spacing: 12) {
+                    // قسم التحميل ومؤشر التقدم الحقيقي
+                    VStack(spacing: 12) {
+                        if dlManager.isDownloading {
+                            VStack(spacing: 8) {
+                                ProgressView(value: dlManager.progress, total: 1.0)
+                                    .progressViewStyle(LinearProgressViewStyle(tint: AppTheme.vibrantBlue))
+                                    .scaleEffect(x: 1, y: 2, anchor: .center)
+                                
+                                Text(dlManager.statusText)
+                                    .font(.caption.bold())
+                                    .foregroundColor(.white)
+                            }
+                            .padding()
+                            .background(AppTheme.cardNavy)
+                            .cornerRadius(14)
+                        } else if dlManager.isSigning {
+                            HStack {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                Text("جاري توقيع التطبيق...")
+                                    .font(.subheadline.bold())
+                                    .foregroundColor(.white)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(AppTheme.cardNavy)
+                            .cornerRadius(14)
+                        } else {
                             Button(action: {
-                                startDownloadAndSign(from: targetURL)
+                                dlManager.startDownloadAndSign(app: app)
                             }) {
                                 HStack {
-                                    if isDownloading || isSigning {
-                                        ProgressView()
-                                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                            .padding(.trailing, 6)
-                                    } else {
-                                        Image(systemName: signedIPAPath == nil ? "arrow.down.circle.fill" : "checkmark.circle.fill")
-                                    }
-                                    
-                                    Text(buttonTitle)
+                                    Image(systemName: "arrow.down.circle.fill")
+                                    Text("تنزيل وتوقيع التطبيق")
                                 }
                                 .font(.headline.bold())
                                 .foregroundColor(.white)
                                 .frame(maxWidth: .infinity)
                                 .padding()
-                                .background(buttonBackgroundColor)
-                                .clipShape(RoundedRectangle(cornerRadius: 14))
+                                .background(AppTheme.vibrantBlue)
+                                .cornerRadius(14)
                             }
-                            .disabled(isDownloading || isSigning)
+                        }
 
-                            if !statusMessage.isEmpty {
-                                Text(statusMessage)
-                                    .font(.caption.bold())
-                                    .foregroundColor(AppTheme.vibrantBlue)
-                            }
+                        if !dlManager.statusText.isEmpty && !dlManager.isDownloading && !dlManager.isSigning {
+                            Text(dlManager.statusText)
+                                .font(.caption.bold())
+                                .foregroundColor(dlManager.statusText.contains("بنجاح") ? .green : .red)
                         }
                     }
 
+                    // قائمة التطبيقات الموقعة والمحفوظة للتثبيت السريع
+                    if !dlManager.signedApps.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("التطبيقات الموقعة والجاهزة للتثبيت")
+                                .font(.headline.bold())
+                                .foregroundColor(AppTheme.textTitle)
+
+                            ForEach(dlManager.signedApps) { item in
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(item.name)
+                                            .font(.subheadline.bold())
+                                            .foregroundColor(.white)
+                                        Text(item.dateAdded.formatted(date: .abbreviated, time: .shortened))
+                                            .font(.caption2)
+                                            .foregroundColor(AppTheme.textSecondary)
+                                    }
+                                    Spacer()
+                                    Button(action: {
+                                        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                                        let file = docs.appendingPathComponent(item.fileName)
+                                        shareURL = file
+                                        showShareSheet = true
+                                    }) {
+                                        Text("تثبيت / إرسال")
+                                            .font(.caption.bold())
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 6)
+                                            .background(Color.green)
+                                            .foregroundColor(.white)
+                                            .cornerRadius(8)
+                                    }
+                                }
+                                .padding(12)
+                                .background(AppTheme.bgDeepBlue.opacity(0.6))
+                                .cornerRadius(10)
+                            }
+                        }
+                        .padding()
+                        .background(AppTheme.cardNavy)
+                        .cornerRadius(16)
+                    }
+
+                    // وصف التطبيق
                     VStack(alignment: .leading, spacing: 10) {
                         Text("وصف التطبيق")
                             .font(.headline.bold())
@@ -91,127 +149,16 @@ struct AppDetailView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding()
                     .background(AppTheme.cardNavy)
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .cornerRadius(16)
                 }
                 .padding()
             }
         }
         .environment(\.layoutDirection, .rightToLeft)
         .sheet(isPresented: $showShareSheet) {
-            if let fileURL = signedIPAPath {
+            if let fileURL = shareURL {
                 ShareActivityView(activityItems: [fileURL])
             }
         }
     }
-
-    private var buttonTitle: String {
-        if isDownloading {
-            return "جاري التنزيل..."
-        } else if isSigning {
-            return "جاري توقيع التطبيق..."
-        } else if signedIPAPath != nil {
-            return "تثبيت / مشاركة التطبيق الموقع"
-        } else {
-            return "تنزيل وتوقيع الآن"
-        }
-    }
-
-    private var buttonBackgroundColor: Color {
-        if signedIPAPath != nil {
-            return Color.green
-        }
-        return AppTheme.vibrantBlue
-    }
-
-    private func startDownloadAndSign(from url: URL) {
-        if signedIPAPath != nil {
-            showShareSheet = true
-            return
-        }
-
-        isDownloading = true
-        statusMessage = "جاري الاتصال بالسيرفر وتحميل الملف..."
-
-        let task = URLSession.shared.downloadTask(with: url) { tempLocalURL, response, error in
-            DispatchQueue.main.async {
-                self.isDownloading = false
-            }
-
-            guard let tempLocalURL = tempLocalURL, error == nil else {
-                DispatchQueue.main.async {
-                    self.statusMessage = "فشل التنزيل: تأكد من اتصال الإنترنت أو صحة الرابط."
-                }
-                return
-            }
-
-            let fileManager = FileManager.default
-            let docs = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            let downloadedIPA = docs.appendingPathComponent("temp_input.ipa")
-            let outputIPA = docs.appendingPathComponent("\(app.name)_Signed.ipa")
-
-            do {
-                if fileManager.fileExists(atPath: downloadedIPA.path) {
-                    try fileManager.removeItem(at: downloadedIPA)
-                }
-                try fileManager.copyItem(at: tempLocalURL, to: downloadedIPA)
-
-                DispatchQueue.main.async {
-                    self.isSigning = true
-                    self.statusMessage = "تم التنزيل بنجاح، جاري التوقيع بشهادتك..."
-                }
-
-                // جلب مسارات الشهادة المحفوظة
-                let p12Path = docs.appendingPathComponent("cert.p12").path
-                let provPath = docs.appendingPathComponent("cert.mobileprovision").path
-                let password = UserDefaults.standard.string(forKey: "cert_password") ?? ""
-
-                // التحقق من توفر الشهادات
-                guard fileManager.fileExists(atPath: p12Path), fileManager.fileExists(atPath: provPath) else {
-                    DispatchQueue.main.async {
-                        self.isSigning = false
-                        self.statusMessage = "خطأ: لم يتم استيراد الشهادة (.p12 و .mobileprovision) من قسم الشهادات."
-                    }
-                    return
-                }
-
-                // تنفيذ التوقيع الداخلي عبر الجسر
-                let isSuccess = ZSignBridge.signIPA(
-                    downloadedIPA.path,
-                    p12Path: p12Path,
-                    provPath: provPath,
-                    password: password,
-                    outputPath: outputIPA.path
-                )
-
-                DispatchQueue.main.async {
-                    self.isSigning = false
-                    if isSuccess && fileManager.fileExists(atPath: outputIPA.path) {
-                        self.signedIPAPath = outputIPA
-                        self.statusMessage = "تم توقيع التطبيق بنجاح!"
-                        self.showShareSheet = true
-                    } else {
-                        self.statusMessage = "فشل التوقيع: تحقق من كلمة سر الشهادة أو مطابقة المعرف."
-                    }
-                }
-
-            } catch {
-                DispatchQueue.main.async {
-                    self.isSigning = false
-                    self.statusMessage = "حدث خطأ أثناء حفظ الملف: \(error.localizedDescription)"
-                }
-            }
-        }
-        task.resume()
-    }
-}
-
-// نافذة المشاركة لتثبيت التطبيق أو إرساله
-struct ShareActivityView: UIViewControllerRepresentable {
-    let activityItems: [Any]
-
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
-    }
-
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
