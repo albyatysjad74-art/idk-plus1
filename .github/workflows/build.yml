@@ -5,9 +5,15 @@ on:
     branches: [ "master", "main" ]
   workflow_dispatch:
 
+# يلغي أي بناء سابق إذا قمت برفع تعديل جديد فوراً لتفريغ الطابور
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: macos-14
+    timeout-minutes: 15
 
     steps:
       - name: Checkout Code
@@ -17,12 +23,10 @@ jobs:
         run: |
           mkdir -p Payload/idkPlus.app
 
-          # البحث التلقائي عن جميع ملفات Swift داخل المجلدات والأقسام
           SWIFT_FILES=$(find . -maxdepth 4 -name "*.swift" ! -name "Package.swift" ! -path "*/.*/*" ! -path "*/test/*")
           echo "Found Swift files:"
           echo "$SWIFT_FILES"
 
-          # تجميع وترجمة الكود إلى معمارية arm64 المتوافقة مع iOS 16.0 فما فوق
           xcrun -sdk iphoneos swiftc $SWIFT_FILES \
             -target arm64-apple-ios16.0 \
             -parse-as-library \
@@ -32,17 +36,12 @@ jobs:
             -framework Foundation \
             -framework UIKit
 
-          # تعيين صلاحيات التنفيذ للملف المترجم
           chmod +x Payload/idkPlus.app/idkPlus
 
-          # نسخ ملف Info.plist الرسمي إلى داخل حزمة التطبيق
-          cp Info.plist Payload/idkPlus.app/Info.plist
-
-          # نسخ الصور المطلوبة للواجهة الافتتاحية ولأيقونة التطبيق
+          cp Info.plist Payload/idkPlus.app/Info.plist 2>/dev/null || true
           cp App/Logo.png Payload/idkPlus.app/ 2>/dev/null || cp Logo.png Payload/idkPlus.app/ 2>/dev/null || true
           cp App/Lokgojo.png Payload/idkPlus.app/ 2>/dev/null || cp Lokgojo.png Payload/idkPlus.app/ 2>/dev/null || true
 
-          # ضغط الحزمة بالكامل واستخراج ملف IPA
           zip -qry idkPlus.ipa Payload
 
       - name: Upload IPA File
