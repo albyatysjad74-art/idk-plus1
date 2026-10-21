@@ -23,41 +23,46 @@ jobs:
           mkdir -p Payload/idkPlus.app
           mkdir -p build_objs
 
-          # 1. ترجمة جميع ملفات C++ الخاصة بـ zsign إلى كائنات (.o)
+          # 1. ترجمة جميع ملفات C++ لـ zsign مع تضمين مسارات common و third-party
           echo "Compiling zsign C++ files..."
-          xcrun -sdk iphoneos clang++ -c vendor/zsign/*.cpp \
+          xcrun -sdk iphoneos clang++ -c \
+            vendor/zsign/*.cpp \
+            vendor/zsign/common/*.cpp \
             -I vendor/openssl/include \
             -I vendor/zsign \
+            -I vendor/zsign/common \
+            -I vendor/zsign/third-party \
             -target arm64-apple-ios16.0 \
             -std=c++11 \
-            -fmodules \
-            -fcxx-modules
+            -w
 
           mv *.o build_objs/ 2>/dev/null || true
 
-          # 2. ترجمة ملف الجسر Objective-C++ (ZSignBridge.mm)
+          # 2. ترجمة ملف الجسر Objective-C++
           echo "Compiling ZSignBridge..."
           xcrun -sdk iphoneos clang++ -c App/ZSignBridge.mm \
             -I vendor/openssl/include \
             -I vendor/zsign \
+            -I vendor/zsign/common \
             -I App \
             -target arm64-apple-ios16.0 \
             -std=c++11 \
-            -fmodules \
-            -fcxx-modules \
+            -w \
             -o build_objs/ZSignBridge.o
 
-          # 3. جمع ملفات Swift
+          # 3. تجميع ملفات Swift
           SWIFT_FILES=$(find . -maxdepth 4 -name "*.swift" ! -name "Package.swift" ! -path "*/.*/*" ! -path "*/test/*")
           echo "Found Swift files:"
           echo "$SWIFT_FILES"
 
-          # 4. ترجمة وربط Swift مع C++ ومكتبات OpenSSL و zlib
+          # 4. دمج وترجمة الملف النهائي مع OpenSSL و zlib
           echo "Linking binary with Swift..."
           xcrun -sdk iphoneos swiftc $SWIFT_FILES build_objs/*.o \
             -target arm64-apple-ios16.0 \
             -import-objc-header App/ZSignBridge.h \
             -I vendor/openssl/include \
+            -I vendor/zsign \
+            -I vendor/zsign/common \
             -L vendor/openssl \
             -lcrypto -lssl -lz \
             -parse-as-library \
@@ -69,7 +74,7 @@ jobs:
 
           chmod +x Payload/idkPlus.app/idkPlus
 
-          # 5. نسخ الإعدادات والأيقونات
+          # 5. نسخ الملفات التعريفية والأيقونات
           if [ -f "Info.plist" ]; then
             cp Info.plist Payload/idkPlus.app/Info.plist
           fi
@@ -78,7 +83,7 @@ jobs:
           find . -name "Lokgojo.png" -exec cp {} Payload/idkPlus.app/Lokgojo.png \;
           find . -name "Lokgojo.png" -exec cp {} Payload/idkPlus.app/AppIcon.png \;
 
-          # 6. ضغط الـ IPA
+          # 6. ضغط التطبيق إلى IPA
           zip -qry idkPlus.ipa Payload
 
       - name: Upload IPA File
