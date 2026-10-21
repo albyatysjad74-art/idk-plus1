@@ -1,5 +1,6 @@
 import Foundation
 
+// نموذج التطبيق الموحد لمتجر idk Plus
 struct AppItem: Identifiable, Hashable {
     let id: String
     let name: String
