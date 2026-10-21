@@ -24,7 +24,7 @@ jobs:
           mkdir -p build_objs
           mkdir -p App
 
-          # إنشاء ملف الترويسة للجسر
+          # إنشاء ترويسة الجسر
           cat << 'EOF' > App/ZSignBridge.h
           #import <Foundation/Foundation.h>
 
@@ -37,7 +37,7 @@ jobs:
           @end
           EOF
 
-          # إنشاء ملف الجسر باستدعاء zsign_main
+          # إنشاء تطبيق الجسر باستدعاء zsign_main
           cat << 'EOF' > App/ZSignBridge.mm
           #import "ZSignBridge.h"
           #import <Foundation/Foundation.h>
@@ -80,14 +80,14 @@ jobs:
           @end
           EOF
 
-          # تعديل main() في كود zsign ليصبح zsign_main()
+          # تعديل دالة main في zsign.cpp لتفادي التعارض مع Swift
           if [ -f "vendor/zsign/zsign.cpp" ]; then
             sed -i '' 's/int main(/int zsign_main(/g' vendor/zsign/zsign.cpp
           fi
 
-          # 1. ترجمة جميع ملفات C (بما فيها minizip / unzip)
-          echo "Compiling C files (minizip/zip)..."
-          C_FILES=$(find vendor/zsign -name "*.c")
+          # 1. ترجمة ملفات C مع استبعاد ملفات Windows نهائياً
+          echo "Compiling POSIX C files (minizip)..."
+          C_FILES=$(find vendor/zsign -name "*.c" ! -name "*win32*" ! -name "*iowin32*")
           if [ -n "$C_FILES" ]; then
             xcrun -sdk iphoneos clang -c $C_FILES \
               -I vendor/openssl/include \
@@ -99,7 +99,7 @@ jobs:
             mv *.o build_objs/ 2>/dev/null || true
           fi
 
-          # 2. ترجمة جميع ملفات C++ لـ zsign
+          # 2. ترجمة ملفات C++ لـ zsign
           echo "Compiling C++ files..."
           CPP_FILES=$(find vendor/zsign -name "*.cpp")
           xcrun -sdk iphoneos clang++ -c $CPP_FILES \
@@ -130,7 +130,7 @@ jobs:
           echo "Found Swift files:"
           echo "$SWIFT_FILES"
 
-          # 5. التجميع والربط النهائي (مع zlib, OpenSSL, و libc++)
+          # 5. التجميع النهائي والربط (Linker)
           echo "Linking binary with Swift..."
           xcrun -sdk iphoneos swiftc $SWIFT_FILES build_objs/*.o \
             -target arm64-apple-ios16.0 \
@@ -150,7 +150,7 @@ jobs:
 
           chmod +x Payload/idkPlus.app/idkPlus
 
-          # 6. نسخ الإعدادات والأيقونات
+          # 6. نسخ Info.plist والأيقونات
           if [ -f "Info.plist" ]; then
             cp Info.plist Payload/idkPlus.app/Info.plist
           fi
@@ -159,7 +159,7 @@ jobs:
           find . -name "Lokgojo.png" -exec cp {} Payload/idkPlus.app/Lokgojo.png \;
           find . -name "Lokgojo.png" -exec cp {} Payload/idkPlus.app/AppIcon.png \;
 
-          # 7. ضغط التطبيق إلى IPA
+          # 7. إنشاء حزمة IPA
           zip -qry idkPlus.ipa Payload
 
       - name: Upload IPA File
