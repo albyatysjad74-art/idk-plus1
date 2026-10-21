@@ -24,7 +24,7 @@ jobs:
           mkdir -p build_objs
           mkdir -p App
 
-          # إنشاء ملفات الجسر بالاستدعاء الصحيح للمسارات
+          # إنشاء ملف الترويسة للجسر
           cat << 'EOF' > App/ZSignBridge.h
           #import <Foundation/Foundation.h>
 
@@ -37,33 +37,53 @@ jobs:
           @end
           EOF
 
+          # إنشاء ملف الجسر باستدعاء ZSignMain النظيف
           cat << 'EOF' > App/ZSignBridge.mm
           #import "ZSignBridge.h"
           #import <Foundation/Foundation.h>
-          #include <iostream>
+          #include <vector>
           #include <string>
-          #include "bundle.h"
+
+          extern int zsign_main(int argc, char* argv[]);
 
           @implementation ZSignBridge
+
           + (BOOL)signIPA:(NSString *)ipaPath
                   p12Path:(NSString *)p12Path
                  provPath:(NSString *)provPath
                  password:(NSString *)password
                outputPath:(NSString *)outputPath {
-              std::string strIPA = [ipaPath UTF8String];
-              std::string strP12 = [p12Path UTF8String];
-              std::string strProv = [provPath UTF8String];
-              std::string strPass = [password UTF8String];
-              std::string strOut = [outputPath UTF8String];
 
-              ZAppBundle bundle;
-              if (!bundle.SignFolder(strIPA, strP12, strProv, strPass, "", "", "", false)) {
-                  return NO;
+              std::vector<std::string> args = {
+                  "zsign",
+                  "-k", [p12Path UTF8String],
+                  "-m", [provPath UTF8String],
+                  "-o", [outputPath UTF8String]
+              };
+
+              if (password && [password length] > 0) {
+                  args.push_back("-p");
+                  args.push_back([password UTF8String]);
               }
-              return YES;
+
+              args.push_back([ipaPath UTF8String]);
+
+              std::vector<char*> c_args;
+              for (auto& arg : args) {
+                  c_args.push_back(&arg[0]);
+              }
+
+              int result = zsign_main((int)c_args.size(), c_args.data());
+              return result == 0;
           }
+
           @end
           EOF
+
+          # تعديل main() في كود zsign ليصبح دالة قابلة للاستدعاء zsign_main()
+          if [ -f "vendor/zsign/zsign.cpp" ]; then
+            sed -i '' 's/int main(/int zsign_main(/g' vendor/zsign/zsign.cpp
+          fi
 
           # 1. ترجمة C++ لـ zsign
           echo "Compiling zsign C++ files..."
@@ -93,12 +113,12 @@ jobs:
             -w \
             -o build_objs/ZSignBridge.o
 
-          # 3. تجميع ملفات Swift
+          # 3. جمع ملفات Swift
           SWIFT_FILES=$(find . -maxdepth 4 -name "*.swift" ! -name "Package.swift" ! -path "*/.*/*" ! -path "*/test/*")
           echo "Found Swift files:"
           echo "$SWIFT_FILES"
 
-          # 4. الربط والتجميع
+          # 4. الربط والتجميع النهائي
           echo "Linking binary with Swift..."
           xcrun -sdk iphoneos swiftc $SWIFT_FILES build_objs/*.o \
             -target arm64-apple-ios16.0 \
