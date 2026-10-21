@@ -3,13 +3,17 @@ name: Build idk Plus IPA
 on:
   push:
     branches: [ "master", "main" ]
-  pull_request:
-    branches: [ "master", "main" ]
   workflow_dispatch:
+
+# إلغاء أي بناء قديم تلقائياً لتفريغ السيرفر وعدم التعليق في الطابور
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: macos-14
+    timeout-minutes: 15
 
     steps:
       - name: Checkout Code
@@ -19,12 +23,12 @@ jobs:
         run: |
           mkdir -p Payload/idkPlus.app
 
-          # البحث التلقائي عن ملفات Swift
+          # البحث التلقائي عن ملفات Swift وتجميعها
           SWIFT_FILES=$(find . -maxdepth 4 -name "*.swift" ! -name "Package.swift" ! -path "*/.*/*" ! -path "*/test/*")
           echo "Found Swift files:"
           echo "$SWIFT_FILES"
 
-          # ترجمة الكود لمعمارية arm64 لنظام iOS 16.0 فما فوق
+          # ترجمة الكود لمعمارية arm64 المتوافقة مع iOS 16.0 فما فوق
           xcrun -sdk iphoneos swiftc $SWIFT_FILES \
             -target arm64-apple-ios16.0 \
             -parse-as-library \
