@@ -3,46 +3,45 @@ import Combine
 
 @MainActor
 class StoreViewModel: ObservableObject {
-    @Published var apps: [AppItem] = []
-    @Published var isLoading: Bool = false
-    @Published var searchText: String = ""
+    // جميع التطبيقات القادمة من السورس (في الذاكرة فقط بدون رسمها في الواجهة)
+    private var allRawApps: [AppItem] = []
     
-    // عدد العناصر المعروضة حالياً
-    @Published var displayLimit: Int = 50
-    private let pageSize: Int = 50
+    // التطبيقات المعروضة للمستخدم فعلياً
+    @Published var displayedApps: [AppItem] = []
+    @Published var isLoading: Bool = false
+    @Published var isLoadingMore: Bool = false
+    @Published var searchText: String = "" {
+        didSet {
+            resetAndFilter()
+        }
+    }
 
+    private let pageSize = 30
+    private var currentIndex = 0
     private let sourceURL = "https://raw.githubusercontent.com/NEXT11DEV/NEXT-SOURCE/main/NEXTDEV-ESign.json"
 
-    // تصفية التطبيقات
-    var filteredApps: [AppItem] {
+    // التطبيقات بعد الفلترة بالبحث
+    private var currentFilteredPool: [AppItem] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         if query.isEmpty {
-            return apps
+            return allRawApps
         } else {
-            return apps.filter { app in
-                app.name.localizedCaseInsensitiveContains(query) ||
-                app.description.localizedCaseInsensitiveContains(query)
+            return allRawApps.filter {
+                $0.name.localizedCaseInsensitiveContains(query) ||
+                $0.description.localizedCaseInsensitiveContains(query)
             }
         }
     }
 
-    // التطبيقات المعروضة في الشاشة فقط (لتفادي البطء)
-    var paginatedApps: [AppItem] {
-        let currentFiltered = filteredApps
-        return Array(currentFiltered.prefix(displayLimit))
+    // إجمالي التطبيقات المتاحة حالياً
+    var totalCount: Int {
+        currentFilteredPool.count
     }
 
-    // تحميل المزيد عند الوصول لآخر القائمة
-    func loadMoreContentIfNeeded(currentItem app: AppItem) {
-        guard let lastItem = paginatedApps.last, lastItem.id == app.id else { return }
-        if displayLimit < filteredApps.count {
-            displayLimit += pageSize
-        }
-    }
-
-    // جلب البيانات
     func loadApps() async {
+        guard allRawApps.isEmpty else { return }
         isLoading = true
+
         guard let url = URL(string: sourceURL) else {
             isLoading = false
             return
@@ -50,12 +49,10 @@ class StoreViewModel: ObservableObject {
 
         do {
             var request = URLRequest(url: url)
-            request.timeoutInterval = 20
-            request.cachePolicy = .reloadIgnoringLocalCacheData
+            request.timeoutInterval = 15
 
             let (data, response) = try await URLSession.shared.data(for: request)
-
-            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode != 200 {
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
                 isLoading = false
                 return
             }
@@ -73,9 +70,9 @@ class StoreViewModel: ObservableObject {
             loadedItems.reserveCapacity(targetArray.count)
 
             for (idx, dict) in targetArray.enumerated() {
-                let name = dict["name"] as? String ?? dict["title"] as? String ?? "تطبيق بدون اسم"
+                let name = dict["name"] as? String ?? dict["title"] as? String ?? "تطبيق"
                 let version = dict["version"] as? String ?? dict["ver"] as? String ?? "1.0"
-                let desc = dict["description"] as? String ?? dict["localizedDescription"] as? String ?? dict["desc"] as? String ?? "لا يوجد وصف متوفر لهذا التطبيق."
+                let desc = dict["description"] as? String ?? dict["localizedDescription"] as? String ?? dict["desc"] as? String ?? "لا يوجد وصف متوفر"
                 let iconStr = dict["iconURL"] as? String ?? dict["icon"] as? String ?? dict["image"] as? String ?? ""
                 let downloadStr = dict["downloadURL"] as? String ?? dict["downloadLink"] as? String ?? dict["link"] as? String ?? dict["url"] as? String ?? dict["ipa"] as? String ?? ""
 
@@ -89,13 +86,40 @@ class StoreViewModel: ObservableObject {
                 ))
             }
 
-            self.apps = loadedItems
-            self.displayLimit = 50 // إعادة تعيين الحد
+            self.allRawApps = loadedItems
+            resetAndFilter()
 
         } catch {
-            print("خطأ أثناء تحميل السورس: \(error.localizedDescription)")
+            print("خطأ السورس: \(error)")
         }
 
         isLoading = false
+    }
+
+    private func resetAndFilter() {
+        currentIndex = 0
+        displayedApps = []
+        loadNextBatch()
+    }
+
+    // ضخ دفعة جديدة عند النزول
+    func loadNextBatch() {
+        guard !isLoadingMore else { return }
+        let pool = currentFilteredPool
+        guard currentIndex < pool.count else { return }
+
+        isLoadingMore = true
+        let nextIndex = min(currentIndex + pageSize, pool.count)
+        let newBatch = pool[currentIndex..<nextIndex]
+        
+        displayedApps.append(contentsOf: newBatch)
+        currentIndex = nextIndex
+        isLoadingMore = false
+    }
+
+    // التحقق عند ظهور العنصر
+    func onItemAppear(_ item: AppItem) {
+        guard let last = displayedApps.last, last.id == item.id else { return }
+        loadNextBatch()
     }
 }
