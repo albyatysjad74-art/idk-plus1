@@ -23,7 +23,7 @@ jobs:
           mkdir -p Payload/idkPlus.app
           mkdir -p build_objs
 
-          # 1. ترجمة جميع ملفات C++ لـ zsign مع تضمين مسارات common و third-party
+          # 1. ترجمة C++ لـ zsign مع تضمين مسارات common و third-party
           echo "Compiling zsign C++ files..."
           xcrun -sdk iphoneos clang++ -c \
             vendor/zsign/*.cpp \
@@ -38,24 +38,25 @@ jobs:
 
           mv *.o build_objs/ 2>/dev/null || true
 
-          # 2. ترجمة ملف الجسر Objective-C++
+          # 2. ترجمة ملف الجسر
           echo "Compiling ZSignBridge..."
           xcrun -sdk iphoneos clang++ -c App/ZSignBridge.mm \
             -I vendor/openssl/include \
             -I vendor/zsign \
             -I vendor/zsign/common \
+            -I vendor/zsign/third-party \
             -I App \
             -target arm64-apple-ios16.0 \
             -std=c++11 \
             -w \
             -o build_objs/ZSignBridge.o
 
-          # 3. تجميع ملفات Swift
+          # 3. جمع ملفات Swift
           SWIFT_FILES=$(find . -maxdepth 4 -name "*.swift" ! -name "Package.swift" ! -path "*/.*/*" ! -path "*/test/*")
           echo "Found Swift files:"
           echo "$SWIFT_FILES"
 
-          # 4. دمج وترجمة الملف النهائي مع OpenSSL و zlib
+          # 4. الربط والتجميع
           echo "Linking binary with Swift..."
           xcrun -sdk iphoneos swiftc $SWIFT_FILES build_objs/*.o \
             -target arm64-apple-ios16.0 \
@@ -63,6 +64,7 @@ jobs:
             -I vendor/openssl/include \
             -I vendor/zsign \
             -I vendor/zsign/common \
+            -I vendor/zsign/third-party \
             -L vendor/openssl \
             -lcrypto -lssl -lz \
             -parse-as-library \
@@ -74,7 +76,7 @@ jobs:
 
           chmod +x Payload/idkPlus.app/idkPlus
 
-          # 5. نسخ الملفات التعريفية والأيقونات
+          # 5. نسخ الإعدادات والأيقونات
           if [ -f "Info.plist" ]; then
             cp Info.plist Payload/idkPlus.app/Info.plist
           fi
@@ -83,7 +85,7 @@ jobs:
           find . -name "Lokgojo.png" -exec cp {} Payload/idkPlus.app/Lokgojo.png \;
           find . -name "Lokgojo.png" -exec cp {} Payload/idkPlus.app/AppIcon.png \;
 
-          # 6. ضغط التطبيق إلى IPA
+          # 6. ضغط الـ IPA
           zip -qry idkPlus.ipa Payload
 
       - name: Upload IPA File
