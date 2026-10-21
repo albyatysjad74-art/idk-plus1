@@ -2,12 +2,6 @@ import SwiftUI
 
 struct AppCardView: View {
     let app: AppItem
-    @ObservedObject var dlManager = DownloadManager.shared
-
-    // التحقق مما إذا كان هذا التطبيق بالذات قيد التحميل أو التوقيع حالياً
-    private var isCurrentAppBusy: Bool {
-        dlManager.currentAppName == app.name && (dlManager.isDownloading || dlManager.isSigning)
-    }
 
     var body: some View {
         NavigationLink(destination: AppDetailView(app: app)) {
@@ -50,35 +44,23 @@ struct AppCardView: View {
 
                 Spacer()
 
-                // زر التثبيت والتوقيع المباشر بدون سفاري
                 if let targetURL = app.downloadURL, !targetURL.absoluteString.isEmpty {
                     Button(action: {
-                        if !isCurrentAppBusy {
-                            dlManager.startDownloadAndSign(app: app)
-                        }
+                        installDirectly(targetURL)
                     }) {
                         HStack(spacing: 4) {
-                            if isCurrentAppBusy {
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                    .scaleEffect(0.7)
-                                Text(dlManager.isDownloading ? "\(Int(dlManager.progress * 100))%" : "توقيع...")
-                                    .font(.system(size: 11, weight: .bold))
-                            } else {
-                                Image(systemName: "arrow.down.circle.fill")
-                                    .font(.system(size: 12))
-                                Text("تثبيت")
-                                    .font(.system(size: 12, weight: .bold))
-                            }
+                            Image(systemName: "arrow.down.circle.fill")
+                                .font(.system(size: 12))
+                            Text("تثبيت")
+                                .font(.system(size: 12, weight: .bold))
                         }
                         .padding(.horizontal, 14)
                         .padding(.vertical, 7)
-                        .background(isCurrentAppBusy ? Color.orange : AppTheme.vibrantBlue)
+                        .background(AppTheme.vibrantBlue)
                         .foregroundColor(.white)
                         .clipShape(Capsule())
                     }
-                    .buttonStyle(PlainButtonStyle()) // لمنع تضارب الضغط مع NavigationLink
-                    .disabled(isCurrentAppBusy)
+                    .buttonStyle(PlainButtonStyle())
                 }
             }
             .padding(11)
@@ -92,5 +74,18 @@ struct AppCardView: View {
             )
         }
         .buttonStyle(PlainButtonStyle())
+    }
+
+    private func installDirectly(_ url: URL) {
+        let urlString = url.absoluteString
+        if urlString.hasPrefix("itms-services://") {
+            UIApplication.shared.open(url)
+        } else if urlString.hasSuffix(".plist") {
+            if let itmsURL = URL(string: "itms-services://?action=download-manifest&url=\(urlString)") {
+                UIApplication.shared.open(itmsURL)
+            }
+        } else {
+            UIApplication.shared.open(url)
+        }
     }
 }
