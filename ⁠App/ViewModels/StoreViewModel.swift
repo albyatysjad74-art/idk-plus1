@@ -6,7 +6,8 @@ class StoreViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var searchText: String = ""
 
-    var filteredApps: [AppItem] {
+    // لضمان التوافق مع شاشة البحث
+    var displayedApps: [AppItem] {
         if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return apps
         }
@@ -31,7 +32,6 @@ class StoreViewModel: ObservableObject {
             DispatchQueue.main.async {
                 self?.isLoading = false
                 guard let data = data, error == nil else { return }
-                
                 do {
                     let decodedResponse = try JSONDecoder().decode(ESignSourceResponse.self, from: data)
                     self?.apps = decodedResponse.apps ?? []
