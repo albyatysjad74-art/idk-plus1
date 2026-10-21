@@ -2,6 +2,9 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <!-- معلومات التشغيل والتطبيق الأساسية -->
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
     <key>CFBundleExecutable</key>
     <string>idkPlus</string>
     <key>CFBundleIdentifier</key>
@@ -10,27 +13,33 @@
     <string>idk Plus</string>
     <key>CFBundleDisplayName</key>
     <string>idk Plus</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
     <key>CFBundleVersion</key>
     <string>1</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+
+    <!-- متطلبات النظام والأجهزة -->
     <key>MinimumOSVersion</key>
     <string>16.0</string>
     <key>LSRequiresIPhoneOS</key>
     <true/>
+    <key>UIRequiredDeviceCapabilities</key>
+    <array>
+        <string>arm64</string>
+    </array>
     <key>UILaunchScreen</key>
     <dict/>
 
-    <!-- تعريف أيقونة التطبيق Lokgojo -->
+    <!-- تعريف الأيقونة المتوافق مع شاشة الهاتف وأدوات التثبيت -->
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundleIcons</key>
     <dict>
         <key>CFBundlePrimaryIcon</key>
         <dict>
             <key>CFBundleIconFiles</key>
             <array>
-                <string>Lokgojo.png</string>
+                <string>AppIcon</string>
                 <string>Lokgojo</string>
             </array>
             <key>UIPrerenderedIcon</key>
@@ -43,7 +52,7 @@
         <dict>
             <key>CFBundleIconFiles</key>
             <array>
-                <string>Lokgojo.png</string>
+                <string>AppIcon</string>
                 <string>Lokgojo</string>
             </array>
             <key>UIPrerenderedIcon</key>
@@ -51,7 +60,7 @@
         </dict>
     </dict>
 
-    <!-- إذن الاتصال بالإنترنت لجلب السورس -->
+    <!-- إذن الاتصال بالإنترنت لجلب التطبيقات من الروابط والسورس -->
     <key>NSAppTransportSecurity</key>
     <dict>
         <key>NSAllowsArbitraryLoads</key>
