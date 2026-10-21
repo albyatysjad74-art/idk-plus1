@@ -1,51 +1,70 @@
-name: Build idk Plus IPA
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- معلومات التشغيل والتطبيق الأساسية -->
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleExecutable</key>
+    <string>idkPlus</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.idk.plus</string>
+    <key>CFBundleName</key>
+    <string>idk Plus</string>
+    <key>CFBundleDisplayName</key>
+    <string>idk Plus</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
 
-on:
-  push:
-    branches: [ "master", "main" ]
-  workflow_dispatch:
+    <!-- متطلبات النظام والأجهزة -->
+    <key>MinimumOSVersion</key>
+    <string>16.0</string>
+    <key>LSRequiresIPhoneOS</key>
+    <true/>
+    <key>UIRequiredDeviceCapabilities</key>
+    <array>
+        <string>arm64</string>
+    </array>
+    <key>UILaunchScreen</key>
+    <dict/>
 
-# يلغي أي بناء سابق إذا قمت برفع تعديل جديد فوراً لتفريغ الطابور
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+    <!-- تعريف الأيقونة المتوافق مع شاشة الهاتف وأدوات التثبيت -->
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundleIcons</key>
+    <dict>
+        <key>CFBundlePrimaryIcon</key>
+        <dict>
+            <key>CFBundleIconFiles</key>
+            <array>
+                <string>AppIcon</string>
+                <string>Lokgojo</string>
+            </array>
+            <key>UIPrerenderedIcon</key>
+            <true/>
+        </dict>
+    </dict>
+    <key>CFBundleIcons~ipad</key>
+    <dict>
+        <key>CFBundlePrimaryIcon</key>
+        <dict>
+            <key>CFBundleIconFiles</key>
+            <array>
+                <string>AppIcon</string>
+                <string>Lokgojo</string>
+            </array>
+            <key>UIPrerenderedIcon</key>
+            <true/>
+        </dict>
+    </dict>
 
-jobs:
-  build:
-    runs-on: macos-14
-    timeout-minutes: 15
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Build Real iOS Binary & IPA
-        run: |
-          mkdir -p Payload/idkPlus.app
-
-          SWIFT_FILES=$(find . -maxdepth 4 -name "*.swift" ! -name "Package.swift" ! -path "*/.*/*" ! -path "*/test/*")
-          echo "Found Swift files:"
-          echo "$SWIFT_FILES"
-
-          xcrun -sdk iphoneos swiftc $SWIFT_FILES \
-            -target arm64-apple-ios16.0 \
-            -parse-as-library \
-            -emit-executable \
-            -o Payload/idkPlus.app/idkPlus \
-            -framework SwiftUI \
-            -framework Foundation \
-            -framework UIKit
-
-          chmod +x Payload/idkPlus.app/idkPlus
-
-          cp Info.plist Payload/idkPlus.app/Info.plist 2>/dev/null || true
-          cp App/Logo.png Payload/idkPlus.app/ 2>/dev/null || cp Logo.png Payload/idkPlus.app/ 2>/dev/null || true
-          cp App/Lokgojo.png Payload/idkPlus.app/ 2>/dev/null || cp Lokgojo.png Payload/idkPlus.app/ 2>/dev/null || true
-
-          zip -qry idkPlus.ipa Payload
-
-      - name: Upload IPA File
-        uses: actions/upload-artifact@v4
-        with:
-          name: idkPlus-IPA
-          path: idkPlus.ipa
+    <!-- إذن الاتصال بالإنترنت لجلب التطبيقات من الروابط والسورس -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsArbitraryLoads</key>
+        <true/>
+    </dict>
+</dict>
+</plist>
