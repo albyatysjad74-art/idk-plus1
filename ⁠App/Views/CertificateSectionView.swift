@@ -2,165 +2,179 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct CertificateSectionView: View {
-    @State private var p12FileName: String = "لم يتم اختيار ملف p12"
-    @State private var provFileName: String = "لم يتم اختيار ملف provision"
-    @State private var certPassword: String = ""
-    @State private var showingP12Picker = false
-    @State private var showingProvPicker = false
+    @State private var p12FileName: String = ""
+    @State private var provFileName: String = ""
+    @State private var passwordText: String = ""
+    
+    @State private var showP12Picker = false
+    @State private var showProvPicker = false
     @State private var alertMessage = ""
     @State private var showAlert = false
 
     var body: some View {
-        NavigationView {
-            ZStack {
-                AppTheme.bgPrimary.ignoresSafeArea()
+        ZStack {
+            AppTheme.bgDeepBlue.ignoresSafeArea()
 
-                ScrollView {
-                    VStack(spacing: 20) {
-                        // قسم رفع ملف P12
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("ملف الشهادة (.p12)")
-                                .font(.headline)
-                                .foregroundColor(.white)
-
-                            Button(action: { showingP12Picker = true }) {
-                                HStack {
-                                    Image(systemName: "doc.badge.plus")
-                                    Text(p12FileName)
-                                        .lineLimit(1)
-                                    Spacer()
-                                }
-                                .padding()
-                                .background(AppTheme.cardNavy)
-                                .cornerRadius(12)
-                                .foregroundColor(AppTheme.vibrantBlue)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(AppTheme.cardBorder, lineWidth: 1)
-                                )
-                            }
-                        }
-
-                        // قسم رفع ملف Provision
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("ملف التعريف (.mobileprovision)")
-                                .font(.headline)
-                                .foregroundColor(.white)
-
-                            Button(action: { showingProvPicker = true }) {
-                                HStack {
-                                    Image(systemName: "doc.text.fill")
-                                    Text(provFileName)
-                                        .lineLimit(1)
-                                    Spacer()
-                                }
-                                .padding()
-                                .background(AppTheme.cardNavy)
-                                .cornerRadius(12)
-                                .foregroundColor(AppTheme.vibrantBlue)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(AppTheme.cardBorder, lineWidth: 1)
-                                )
-                            }
-                        }
-
-                        // حقل كلمة السر
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("كلمة مرور الشهادة")
-                                .font(.headline)
-                                .foregroundColor(.white)
-
-                            SecureField("أدخل الرمز أو اتركه فارغاً", text: $certPassword)
-                                .padding()
-                                .background(AppTheme.cardNavy)
-                                .cornerRadius(12)
-                                .foregroundColor(.white)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(AppTheme.cardBorder, lineWidth: 1)
-                                )
-                        }
-
-                        // زر الحفظ
-                        Button(action: saveCertificateData) {
-                            Text("حفظ الشهادة للاستخدام")
-                                .fontWeight(.bold)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(AppTheme.vibrantBlue)
-                                .foregroundColor(.white)
-                                .cornerRadius(12)
-                        }
+            ScrollView {
+                VStack(spacing: 20) {
+                    Text("إدارة الشهادات")
+                        .font(.title2.bold())
+                        .foregroundColor(AppTheme.textTitle)
                         .padding(.top, 10)
+
+                    // 1. اختيار ملف p12
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("ملف الشهادة (.p12)")
+                            .font(.headline)
+                            .foregroundColor(AppTheme.textTitle)
+
+                        Button(action: {
+                            showP12Picker = true
+                        }) {
+                            HStack {
+                                Image(systemName: p12FileName.isEmpty ? "doc.badge.plus" : "checkmark.seal.fill")
+                                    .foregroundColor(p12FileName.isEmpty ? AppTheme.vibrantBlue : .green)
+                                    .font(.title3)
+                                
+                                Text(p12FileName.isEmpty ? "اضغط لاختيار ملف p12" : p12FileName)
+                                    .font(.subheadline.bold())
+                                    .foregroundColor(p12FileName.isEmpty ? AppTheme.textSecondary : .white)
+                                    .lineLimit(1)
+                                
+                                Spacer()
+                            }
+                            .padding()
+                            .frame(maxWidth: .infinity)
+                            .background(AppTheme.cardNavy)
+                            .cornerRadius(12)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(p12FileName.isEmpty ? Color.clear : Color.green.opacity(0.6), lineWidth: 1.5)
+                            )
+                        }
                     }
-                    .padding()
+
+                    // 2. اختيار ملف mobileprovision
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("ملف التعريف (.mobileprovision)")
+                            .font(.headline)
+                            .foregroundColor(AppTheme.textTitle)
+
+                        Button(action: {
+                            showProvPicker = true
+                        }) {
+                            HStack {
+                                Image(systemName: provFileName.isEmpty ? "doc.text.fill" : "checkmark.seal.fill")
+                                    .foregroundColor(provFileName.isEmpty ? AppTheme.vibrantBlue : .green)
+                                    .font(.title3)
+                                
+                                Text(provFileName.isEmpty ? "اضغط لاختيار ملف provision" : provFileName)
+                                    .font(.subheadline.bold())
+                                    .foregroundColor(provFileName.isEmpty ? AppTheme.textSecondary : .white)
+                                    .lineLimit(1)
+                                
+                                Spacer()
+                            }
+                            .padding()
+                            .frame(maxWidth: .infinity)
+                            .background(AppTheme.cardNavy)
+                            .cornerRadius(12)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(provFileName.isEmpty ? Color.clear : Color.green.opacity(0.6), lineWidth: 1.5)
+                            )
+                        }
+                    }
+
+                    // 3. كلمة المرور
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("كلمة مرور الشهادة")
+                            .font(.headline)
+                            .foregroundColor(AppTheme.textTitle)
+
+                        SecureField("أدخل كلمة المرور (إن وجدت)", text: $passwordText)
+                            .padding()
+                            .background(AppTheme.cardNavy)
+                            .cornerRadius(12)
+                            .foregroundColor(.white)
+                    }
+
+                    // 4. زر الحفظ
+                    Button(action: saveCertificateSettings) {
+                        HStack {
+                            Image(systemName: "square.and.arrow.down.fill")
+                            Text("حفظ الشهادة للاستخدام")
+                        }
+                        .font(.headline.bold())
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(AppTheme.vibrantBlue)
+                        .cornerRadius(14)
+                    }
+                    .padding(.top, 10)
                 }
+                .padding()
             }
-            .navigationTitle("إدارة الشهادات")
-            .navigationBarTitleDisplayMode(.inline)
-            .sheet(isPresented: $showingP12Picker) {
-                DocumentPicker(types: [UTType(filenameExtension: "p12") ?? .data]) { url in
-                    saveFileToDocuments(url: url, destName: "cert.p12")
-                    p12FileName = url.lastPathComponent
-                }
-            }
-            .sheet(isPresented: $showingProvPicker) {
-                DocumentPicker(types: [UTType(filenameExtension: "mobileprovision") ?? .data]) { url in
-                    saveFileToDocuments(url: url, destName: "profile.mobileprovision")
-                    provFileName = url.lastPathComponent
-                }
-            }
-            .alert(isPresented: $showAlert) {
-                Alert(title: Text("تنبيه"), message: Text(alertMessage), dismissButton: .default(Text("حسناً")))
-            }
+        }
+        .environment(\.layoutDirection, .rightToLeft)
+        .onAppear(perform: loadCurrentSavedCert)
+        .fileImporter(isPresented: $showP12Picker, allowedContentTypes: [.data, .item], allowsMultipleSelection: false) { result in
+            handleFileSelection(result: result, targetExtension: "p12")
+        }
+        .fileImporter(isPresented: $showProvPicker, allowedContentTypes: [.data, .item], allowsMultipleSelection: false) { result in
+            handleFileSelection(result: result, targetExtension: "mobileprovision")
+        }
+        .alert(isPresented: $showAlert) {
+            Alert(title: Text("تنبيه"), message: Text(alertMessage), dismissButton: .default(Text("حسناً")))
         }
     }
 
-    private func saveFileToDocuments(url: URL, destName: String) {
-        guard url.startAccessingSecurityScopedResource() else { return }
-        defer { url.stopAccessingSecurityScopedResource() }
-        
-        let fileManager = FileManager.default
-        let docs = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let dest = docs.appendingPathComponent(destName)
-        
-        try? fileManager.removeItem(at: dest)
-        try? fileManager.copyItem(at: url, to: dest)
+    private func handleFileSelection(result: Result<[URL], Error>, targetExtension: String) {
+        do {
+            guard let selectedFile = try result.get().first else { return }
+            
+            // تفعيل صلاحية القراءة من نظام الملفات
+            if selectedFile.startAccessingSecurityScopedResource() {
+                defer { selectedFile.stopAccessingSecurityScopedResource() }
+                
+                let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                let destination = docs.appendingPathComponent("cert.\(targetExtension)")
+                
+                if FileManager.default.fileExists(atPath: destination.path) {
+                    try FileManager.default.removeItem(at: destination)
+                }
+                try FileManager.default.copyItem(at: selectedFile, to: destination)
+                
+                if targetExtension == "p12" {
+                    p12FileName = selectedFile.lastPathComponent
+                } else {
+                    provFileName = selectedFile.lastPathComponent
+                }
+            }
+        } catch {
+            alertMessage = "فشل استيراد الملف: \(error.localizedDescription)"
+            showAlert = true
+        }
     }
 
-    private func saveCertificateData() {
-        UserDefaults.standard.set(certPassword, forKey: "CertPassword")
-        alertMessage = "تم حفظ الشهادة بنجاح، يمكنك الآن توقيع أي تطبيق من المتجر."
+    private func saveCertificateSettings() {
+        UserDefaults.standard.set(passwordText, forKey: "cert_password")
+        alertMessage = "تم حفظ إعدادات الشهادة بنجاح! جاهزة لتوقيع أي تطبيق."
         showAlert = true
     }
-}
 
-// منتقي الملفات من الآيفون
-struct DocumentPicker: UIViewControllerRepresentable {
-    let types: [UTType]
-    let onPick: (URL) -> Void
+    private func loadCurrentSavedCert() {
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let p12 = docs.appendingPathComponent("cert.p12")
+        let prov = docs.appendingPathComponent("cert.mobileprovision")
 
-    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
-        let picker = UIDocumentPickerViewController(forOpeningContentTypes: types)
-        picker.delegate = context.coordinator
-        return picker
-    }
-
-    func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) {}
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
-
-    class Coordinator: NSObject, UIDocumentPickerDelegate {
-        let parent: DocumentPicker
-        init(_ parent: DocumentPicker) { self.parent = parent }
-
-        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
-            if let url = urls.first {
-                parent.onPick(url)
-            }
+        if FileManager.default.fileExists(atPath: p12.path) {
+            p12FileName = "تم حفظ cert.p12 سابقاً"
         }
+        if FileManager.default.fileExists(atPath: prov.path) {
+            provFileName = "تم حفظ cert.mobileprovision سابقاً"
+        }
+        passwordText = UserDefaults.standard.string(forKey: "cert_password") ?? ""
     }
 }
