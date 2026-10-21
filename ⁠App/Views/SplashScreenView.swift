@@ -10,7 +10,7 @@ struct SplashScreenView: View {
 
     var body: some View {
         ZStack {
-            // خلفية سوداء نقية تبتلع سواد الصورة بالكامل
+            // خلفية سوداء نقية
             Color.black.ignoresSafeArea()
 
             VStack(spacing: 24) {
@@ -20,9 +20,9 @@ struct SplashScreenView: View {
                     Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 130, height: 130)
-                        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                        .shadow(color: AppTheme.vibrantBlue.opacity(0.4), radius: 20, x: 0, y: 0)
+                        .frame(width: 140, height: 140)
+                        // يحذف السواد ويلغي المستطيل نهائياً
+                        .blendMode(.screen)
                 } else {
                     Image(systemName: "flame.circle.fill")
                         .resizable()
