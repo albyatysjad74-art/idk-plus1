@@ -7,8 +7,8 @@ class StoreViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var searchText: String = ""
 
-    // رابط سورس التطبيقات المباشر
-    private let sourceURL = "https://raw.githubusercontent.com/ikiraplus/ipastore/main/jom.json"
+    // رابط سورس ESign المباشر
+    private let sourceURL = "https://raw.githubusercontent.com/NEXT11DEV/NEXT-SOURCE/main/NEXTDEV-ESign.json"
 
     // تصفية التطبيقات للبحث الفوري
     var filteredApps: [AppItem] {
@@ -32,10 +32,15 @@ class StoreViewModel: ObservableObject {
         }
 
         do {
-            let (data, response) = try await URLSession.shared.data(from: url)
-            
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 15
+            // تجاوز الكاش لضمان جلب أحدث نسخة من الرابط
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+
+            let (data, response) = try await URLSession.shared.data(for: request)
+
             if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode != 200 {
-                print("فشل الاتصال، رمز الاستجابة: \(httpResponse.statusCode)")
+                print("فشل جلب السورس، كود الخطأ: \(httpResponse.statusCode)")
                 isLoading = false
                 return
             }
@@ -43,7 +48,7 @@ class StoreViewModel: ObservableObject {
             let jsonObject = try JSONSerialization.jsonObject(with: data)
             var targetArray: [[String: Any]] = []
 
-            // التعامل مع السورس سواء كان قاموس أو مصفوفة مباشرة
+            // التعامل مع بنية سورس ESign
             if let dict = jsonObject as? [String: Any] {
                 if let apps = dict["apps"] as? [[String: Any]] {
                     targetArray = apps
@@ -58,14 +63,14 @@ class StoreViewModel: ObservableObject {
             loadedItems.reserveCapacity(targetArray.count)
 
             for (idx, dict) in targetArray.enumerated() {
-                let name = dict["name"] as? String ?? dict["title"] as? String ?? "تطبيق"
+                let name = dict["name"] as? String ?? dict["title"] as? String ?? "تطبيق بدون اسم"
                 let version = dict["version"] as? String ?? dict["ver"] as? String ?? "1.0"
-                let desc = dict["description"] as? String ?? dict["desc"] as? String ?? "تطبيق بلس متوافق مع iOS 16"
-                let iconStr = dict["icon"] as? String ?? dict["iconURL"] as? String ?? dict["image"] as? String ?? ""
-                let downloadStr = dict["downloadLink"] as? String ?? dict["downloadURL"] as? String ?? dict["link"] as? String ?? dict["url"] as? String ?? dict["ipa"] as? String ?? ""
+                let desc = dict["description"] as? String ?? dict["localizedDescription"] as? String ?? dict["desc"] as? String ?? "تطبيق متوفر على المتجر"
+                let iconStr = dict["iconURL"] as? String ?? dict["icon"] as? String ?? dict["image"] as? String ?? ""
+                let downloadStr = dict["downloadURL"] as? String ?? dict["downloadLink"] as? String ?? dict["link"] as? String ?? dict["url"] as? String ?? dict["ipa"] as? String ?? ""
 
                 loadedItems.append(AppItem(
-                    id: "app-\(idx)",
+                    id: "app-\(idx)-\(name)",
                     name: name,
                     version: version,
                     description: desc,
@@ -75,10 +80,10 @@ class StoreViewModel: ObservableObject {
             }
 
             self.apps = loadedItems
-            print("تم جلب \(loadedItems.count) تطبيق بنجاح.")
+            print("تم استخراج \(loadedItems.count) تطبيق بنجاح.")
 
         } catch {
-            print("خطأ أثناء معالجة البيانات: \(error)")
+            print("حدث خطأ أثناء تحميل السورس: \(error.localizedDescription)")
         }
 
         isLoading = false
