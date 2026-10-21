@@ -5,12 +5,11 @@ struct StoreHomeView: View {
     @ObservedObject private var loc = LocalizationManager.shared
     @State private var selectedCategory: AppCategory = .all
 
-    // تصفية التطبيقات وفق التصنيف المختار
     private var filteredApps: [AppItem] {
         if selectedCategory == .all {
             return viewModel.apps
         }
-        return viewModel.apps.filter { $0.category == selectedCategory }
+        return viewModel.apps.filter { ($0.category ?? .tools) == selectedCategory }
     }
 
     var body: some View {
@@ -18,7 +17,7 @@ struct StoreHomeView: View {
             AppTheme.bgDeepBlue.ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // ترويسة المتجر وزر تغيير اللغة
+                // ترويسة المتجر واللغة
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(loc.tr("store"))
@@ -32,7 +31,6 @@ struct StoreHomeView: View {
 
                     Spacer()
 
-                    // زر التبديل بين العربي والإنجليزي
                     Button(action: {
                         withAnimation {
                             loc.currentLanguage = (loc.currentLanguage == .ar) ? .en : .ar
@@ -57,7 +55,7 @@ struct StoreHomeView: View {
                 .padding(.top, 10)
                 .padding(.bottom, 12)
 
-                // شريط التصنيفات الأفقي
+                // التصنيفات
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 10) {
                         ForEach(AppCategory.allCases, id: \.self) { category in
@@ -87,7 +85,7 @@ struct StoreHomeView: View {
                     .padding(.bottom, 12)
                 }
 
-                // قائمة التطبيقات
+                // عرض التطبيقات
                 if viewModel.isLoading {
                     Spacer()
                     ProgressView()
