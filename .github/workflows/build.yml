@@ -1,91 +1,59 @@
-import SwiftUI
+name: Build idk Plus IPA
 
-struct AppCardView: View {
-    let app: AppItem
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
 
-    var body: some View {
-        NavigationLink(destination: AppDetailView(app: app)) {
-            HStack(spacing: 12) {
-                AsyncImage(url: app.iconURL) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image.resizable().scaledToFill()
-                    default:
-                        ZStack {
-                            AppTheme.vibrantBlue.opacity(0.15)
-                            Image(systemName: "app.fill")
-                                .foregroundColor(AppTheme.vibrantBlue)
-                                .font(.system(size: 24))
-                        }
-                    }
-                }
-                .frame(width: 56, height: 56)
-                .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 13, style: .continuous)
-                        .stroke(AppTheme.cardBorder, lineWidth: 1)
-                )
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(app.name)
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(AppTheme.textTitle)
-                        .lineLimit(1)
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 10
 
-                    Text(app.description)
-                        .font(.system(size: 11))
-                        .foregroundColor(AppTheme.textSecondary)
-                        .lineLimit(2)
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-                    Text("الإصدار: \(app.version)")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(AppTheme.vibrantBlue)
-                }
+      - name: Build iOS IPA
+        run: |
+          mkdir -p Payload/idkPlus.app
 
-                Spacer()
+          # جرد ملفات Swift المتبقية في المشروع
+          SWIFT_FILES=$(find . -maxdepth 4 -name "*.swift" ! -name "Package.swift" ! -path "*/.*/*" ! -path "*/test/*")
+          echo "Compiling files: $SWIFT_FILES"
 
-                if let targetURL = app.downloadURL, !targetURL.absoluteString.isEmpty {
-                    Button(action: {
-                        installDirectly(targetURL)
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "arrow.down.circle.fill")
-                                .font(.system(size: 12))
-                            Text("تثبيت")
-                                .font(.system(size: 12, weight: .bold))
-                        }
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 7)
-                        .background(AppTheme.vibrantBlue)
-                        .foregroundColor(.white)
-                        .clipShape(Capsule())
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                }
-            }
-            .padding(11)
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(AppTheme.cardNavy)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .stroke(AppTheme.cardBorder, lineWidth: 1)
-                    )
-            )
-        }
-        .buttonStyle(PlainButtonStyle())
-    }
+          # ترجمة التطبيق كنواة Swift نقية
+          xcrun -sdk iphoneos swiftc $SWIFT_FILES \
+            -target arm64-apple-ios16.0 \
+            -parse-as-library \
+            -emit-executable \
+            -o Payload/idkPlus.app/idkPlus \
+            -framework SwiftUI \
+            -framework Foundation \
+            -framework UIKit
 
-    private func installDirectly(_ url: URL) {
-        let urlString = url.absoluteString
-        if urlString.hasPrefix("itms-services://") {
-            UIApplication.shared.open(url)
-        } else if urlString.hasSuffix(".plist") {
-            if let itmsURL = URL(string: "itms-services://?action=download-manifest&url=\(urlString)") {
-                UIApplication.shared.open(itmsURL)
-            }
-        } else {
-            UIApplication.shared.open(url)
-        }
-    }
-}
+          chmod +x Payload/idkPlus.app/idkPlus
+
+          # نسخ Info.plist والأيقونات إن وجدت
+          if [ -f "Info.plist" ]; then
+            cp Info.plist Payload/idkPlus.app/Info.plist
+          fi
+
+          find . -name "Logo.png" -exec cp {} Payload/idkPlus.app/Logo.png \;
+          find . -name "Lokgojo.png" -exec cp {} Payload/idkPlus.app/Lokgojo.png \;
+          find . -name "Lokgojo.png" -exec cp {} Payload/idkPlus.app/AppIcon.png \;
+
+          # إنشاء ملف الـ IPA
+          zip -qry idkPlus.ipa Payload
+
+      - name: Upload IPA File
+        uses: actions/upload-artifact@v4
+        with:
+          name: idkPlus-IPA
+          path: idkPlus.ipa
