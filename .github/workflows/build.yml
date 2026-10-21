@@ -24,7 +24,7 @@ jobs:
           mkdir -p build_objs
           mkdir -p App
 
-          # إنشاء ملفات الجسر تلقائياً في المكان الصحيح
+          # إنشاء ملفات الجسر بالاستدعاء الصحيح للمسارات
           cat << 'EOF' > App/ZSignBridge.h
           #import <Foundation/Foundation.h>
 
@@ -42,7 +42,7 @@ jobs:
           #import <Foundation/Foundation.h>
           #include <iostream>
           #include <string>
-          #include "vendor/zsign/bundle.h"
+          #include "bundle.h"
 
           @implementation ZSignBridge
           + (BOOL)signIPA:(NSString *)ipaPath
@@ -65,7 +65,7 @@ jobs:
           @end
           EOF
 
-          # 1. ترجمة C++ لـ zsign مع المسارات المطلوبة
+          # 1. ترجمة C++ لـ zsign
           echo "Compiling zsign C++ files..."
           xcrun -sdk iphoneos clang++ -c \
             vendor/zsign/*.cpp \
@@ -93,12 +93,12 @@ jobs:
             -w \
             -o build_objs/ZSignBridge.o
 
-          # 3. جمع ملفات Swift
+          # 3. تجميع ملفات Swift
           SWIFT_FILES=$(find . -maxdepth 4 -name "*.swift" ! -name "Package.swift" ! -path "*/.*/*" ! -path "*/test/*")
           echo "Found Swift files:"
           echo "$SWIFT_FILES"
 
-          # 4. التجميع والربط النهائي
+          # 4. الربط والتجميع
           echo "Linking binary with Swift..."
           xcrun -sdk iphoneos swiftc $SWIFT_FILES build_objs/*.o \
             -target arm64-apple-ios16.0 \
@@ -118,7 +118,7 @@ jobs:
 
           chmod +x Payload/idkPlus.app/idkPlus
 
-          # 5. نسخ الملفات التعريفية والأيقونات
+          # 5. نسخ الإعدادات والأيقونات
           if [ -f "Info.plist" ]; then
             cp Info.plist Payload/idkPlus.app/Info.plist
           fi
