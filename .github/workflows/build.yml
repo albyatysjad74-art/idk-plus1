@@ -12,131 +12,24 @@ concurrency:
 jobs:
   build:
     runs-on: macos-14
-    timeout-minutes: 15
+    timeout-minutes: 10
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Build Real iOS Binary & IPA
+      - name: Build iOS IPA
         run: |
           mkdir -p Payload/idkPlus.app
-          mkdir -p build_objs
-          mkdir -p App
 
-          # 1. استبعاد أي ملف نقطة دخول لـ zsign لمنع التعارض مع نقطة دخول تطبيق Swift
-          rm -f vendor/zsign/zsign.cpp vendor/zsign/main.cpp
+          # استبعاد ملفات الشهادات القديمة تلقائياً لتفادي أي تعارض أثناء الترجمة
+          SWIFT_FILES=$(find . -maxdepth 4 -name "*.swift" ! -name "Package.swift" ! -path "*/.*/*" ! -path "*/test/*" ! -name "CertificateSectionView.swift" ! -name "DownloadManager.swift")
+          echo "Found Swift files to compile:"
+          echo "$SWIFT_FILES"
 
-          # 2. إنشاء ملف الترويسة للجسر البرمجي
-          cat << 'EOF' > App/ZSignBridge.h
-          #import <Foundation/Foundation.h>
-
-          @interface ZSignBridge : NSObject
-          + (BOOL)signIPA:(NSString *)ipaPath
-                  p12Path:(NSString *)p12Path
-                 provPath:(NSString *)provPath
-                 password:(NSString *)password
-               outputPath:(NSString *)outputPath;
-          @end
-          EOF
-
-          # 3. إنشاء تطبيق الجسر بالربط الداخلي مع ZBundle (10 معاملات كاملة ومطابقة)
-          cat << 'EOF' > App/ZSignBridge.mm
-          #import "ZSignBridge.h"
-          #import <Foundation/Foundation.h>
-          #include <iostream>
-          #include <string>
-          #include <vector>
-          #include "bundle.h"
-
-          @implementation ZSignBridge
-
-          + (BOOL)signIPA:(NSString *)ipaPath
-                  p12Path:(NSString *)p12Path
-                 provPath:(NSString *)provPath
-                 password:(NSString *)password
-               outputPath:(NSString *)outputPath {
-
-              std::string strIPA = [ipaPath UTF8String];
-              std::string strP12 = [p12Path UTF8String];
-              std::string strProv = [provPath UTF8String];
-              std::string strPass = password ? [password UTF8String] : "";
-
-              ZSignAsset zAsset;
-              // 8 معاملات كاملة لتهيئة الشهادة
-              if (!zAsset.Init("", strP12, strProv, strPass, "", "", false, false)) {
-                  return NO;
-              }
-
-              ZBundle zBundle;
-              std::vector<std::string> emptyList;
-              // 10 معاملات كاملة: المعامل 6 و 7 كلاهما vector<string>
-              bool success = zBundle.SignFolder(&zAsset, strIPA, "", "", "", emptyList, emptyList, false, false, false);
-              return success ? YES : NO;
-          }
-
-          @end
-          EOF
-
-          # 4. ترجمة ملفات C الخاصة بـ minizip بمترجم C الصريح (C99) لتفادي أخطاء C++
-          echo "Compiling minizip C files..."
-          C_FILES=$(find vendor/zsign -name "*.c" ! -name "*win32*" ! -name "*iowin32*" ! -name "*mztools*")
-          for file in $C_FILES; do
-            OBJ_NAME="build_objs/c_$(echo "$file" | tr '/' '_').o"
-            xcrun -sdk iphoneos clang -c "$file" \
-              -std=c99 \
-              -I vendor/openssl/include \
-              -I vendor/zsign \
-              -I vendor/zsign/common \
-              -I vendor/zsign/third-party \
-              -target arm64-apple-ios16.0 \
-              -w \
-              -o "$OBJ_NAME"
-          done
-
-          # 5. ترجمة ملفات C++ لـ zsign بمترجم C++11
-          echo "Compiling zsign C++ files..."
-          CPP_FILES=$(find vendor/zsign -name "*.cpp")
-          for file in $CPP_FILES; do
-            OBJ_NAME="build_objs/cpp_$(echo "$file" | tr '/' '_').o"
-            xcrun -sdk iphoneos clang++ -c "$file" \
-              -I vendor/openssl/include \
-              -I vendor/zsign \
-              -I vendor/zsign/common \
-              -I vendor/zsign/third-party \
-              -target arm64-apple-ios16.0 \
-              -std=c++11 \
-              -w \
-              -o "$OBJ_NAME"
-          done
-
-          # 6. ترجمة ملف الجسر ZSignBridge.mm
-          echo "Compiling ZSignBridge.mm..."
-          xcrun -sdk iphoneos clang++ -c App/ZSignBridge.mm \
-            -I vendor/openssl/include \
-            -I vendor/zsign \
-            -I vendor/zsign/common \
-            -I vendor/zsign/third-party \
-            -I App \
+          # ترجمة وربط تطبيق Swift فقط
+          xcrun -sdk iphoneos swiftc $SWIFT_FILES \
             -target arm64-apple-ios16.0 \
-            -std=c++11 \
-            -w \
-            -o build_objs/ZSignBridge.o
-
-          # 7. جرد ملفات واجهة Swift
-          SWIFT_FILES=$(find . -maxdepth 4 -name "*.swift" ! -name "Package.swift" ! -path "*/.*/*" ! -path "*/test/*")
-
-          # 8. الربط المباشر لجميع الكائنات مع تطبيق Swift كنواة واحدة
-          echo "Linking binary with Swift..."
-          xcrun -sdk iphoneos swiftc $SWIFT_FILES build_objs/*.o \
-            -target arm64-apple-ios16.0 \
-            -import-objc-header App/ZSignBridge.h \
-            -I vendor/openssl/include \
-            -I vendor/zsign \
-            -I vendor/zsign/common \
-            -I vendor/zsign/third-party \
-            -L vendor/openssl \
-            -lcrypto -lssl -lz -lc++ \
             -parse-as-library \
             -emit-executable \
             -o Payload/idkPlus.app/idkPlus \
@@ -146,7 +39,7 @@ jobs:
 
           chmod +x Payload/idkPlus.app/idkPlus
 
-          # 9. نسخ ملف التعريف والأيقونات
+          # نسخ ملف التعريف والأيقونات
           if [ -f "Info.plist" ]; then
             cp Info.plist Payload/idkPlus.app/Info.plist
           fi
@@ -155,10 +48,10 @@ jobs:
           find . -name "Lokgojo.png" -exec cp {} Payload/idkPlus.app/Lokgojo.png \;
           find . -name "Lokgojo.png" -exec cp {} Payload/idkPlus.app/AppIcon.png \;
 
-          # 10. إنشاء حزمة التثبيت IPA
+          # ضغط الحزمة إلى ملف IPA
           zip -qry idkPlus.ipa Payload
 
-      - name: Upload IPA File
+      - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
           name: idkPlus-IPA
