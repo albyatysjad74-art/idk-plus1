@@ -8,12 +8,13 @@ struct SplashScreenView: View {
             VStack(spacing: 24) {
                 Spacer()
 
-                Image(systemName: "flame.circle.fill")
+                // صورة الشعار المخصصة
+                Image("logo")
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 100, height: 100)
-                    .foregroundColor(AppTheme.vibrantBlue)
-                    .shadow(color: AppTheme.vibrantBlue.opacity(0.6), radius: 18, x: 0, y: 5)
+                    .frame(width: 110, height: 110)
+                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .shadow(color: AppTheme.vibrantBlue.opacity(0.5), radius: 15, x: 0, y: 5)
 
                 VStack(spacing: 8) {
                     Text("idk Plus")
