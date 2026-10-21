@@ -2,9 +2,7 @@ import SwiftUI
 
 struct AppDetailView: View {
     let app: AppItem
-    @ObservedObject var dlManager = DownloadManager.shared
-    @State private var shareURL: URL?
-    @State private var showShareSheet = false
+    @ObservedObject private var loc = LocalizationManager.shared
 
     var body: some View {
         ZStack {
@@ -23,14 +21,14 @@ struct AppDetailView: View {
                             }
                         }
                         .frame(width: 75, height: 75)
-                        .cornerRadius(16)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
                         VStack(alignment: .leading, spacing: 5) {
                             Text(app.name)
                                 .font(.title3.bold())
                                 .foregroundColor(AppTheme.textTitle)
 
-                            Text("الإصدار: \(app.version)")
+                            Text("\(loc.tr("version")): \(app.version)")
                                 .font(.subheadline.bold())
                                 .foregroundColor(AppTheme.vibrantBlue)
                         }
@@ -38,102 +36,27 @@ struct AppDetailView: View {
                     }
                     .padding()
                     .background(AppTheme.cardNavy)
-                    .cornerRadius(16)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
 
-                    VStack(spacing: 12) {
-                        if dlManager.isDownloading {
-                            VStack(spacing: 8) {
-                                ProgressView(value: dlManager.progress, total: 1.0)
-                                    .progressViewStyle(LinearProgressViewStyle(tint: AppTheme.vibrantBlue))
-                                    .scaleEffect(x: 1, y: 2, anchor: .center)
-                                
-                                Text(dlManager.statusText)
-                                    .font(.caption.bold())
-                                    .foregroundColor(.white)
-                            }
-                            .padding()
-                            .background(AppTheme.cardNavy)
-                            .cornerRadius(14)
-                        } else if dlManager.isSigning {
+                    if let targetURL = app.downloadURL, !targetURL.absoluteString.isEmpty {
+                        Button(action: {
+                            installDirectly(targetURL)
+                        }) {
                             HStack {
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                Text("جاري توقيع التطبيق...")
-                                    .font(.subheadline.bold())
-                                    .foregroundColor(.white)
+                                Image(systemName: "arrow.down.circle.fill")
+                                Text(loc.tr("install"))
                             }
+                            .font(.headline.bold())
+                            .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
                             .padding()
-                            .background(AppTheme.cardNavy)
-                            .cornerRadius(14)
-                        } else {
-                            Button(action: {
-                                dlManager.startDownloadAndSign(app: app)
-                            }) {
-                                HStack {
-                                    Image(systemName: "arrow.down.circle.fill")
-                                    Text("تنزيل وتوقيع التطبيق")
-                                }
-                                .font(.headline.bold())
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(AppTheme.vibrantBlue)
-                                .cornerRadius(14)
-                            }
+                            .background(AppTheme.vibrantBlue)
+                            .clipShape(RoundedRectangle(cornerRadius: 14))
                         }
-
-                        if !dlManager.statusText.isEmpty && !dlManager.isDownloading && !dlManager.isSigning {
-                            Text(dlManager.statusText)
-                                .font(.caption.bold())
-                                .foregroundColor(dlManager.statusText.contains("بنجاح") ? .green : .red)
-                        }
-                    }
-
-                    if !dlManager.signedApps.isEmpty {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("التطبيقات الموقعة والجاهزة للتثبيت")
-                                .font(.headline.bold())
-                                .foregroundColor(AppTheme.textTitle)
-
-                            ForEach(dlManager.signedApps) { item in
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(item.name)
-                                            .font(.subheadline.bold())
-                                            .foregroundColor(.white)
-                                        Text(item.dateAdded.formatted(date: .abbreviated, time: .shortened))
-                                            .font(.caption2)
-                                            .foregroundColor(AppTheme.textSecondary)
-                                    }
-                                    Spacer()
-                                    Button(action: {
-                                        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-                                        let file = docs.appendingPathComponent(item.fileName)
-                                        shareURL = file
-                                        showShareSheet = true
-                                    }) {
-                                        Text("تثبيت / إرسال")
-                                            .font(.caption.bold())
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 6)
-                                            .background(Color.green)
-                                            .foregroundColor(.white)
-                                            .cornerRadius(8)
-                                    }
-                                }
-                                .padding(12)
-                                .background(AppTheme.bgDeepBlue.opacity(0.6))
-                                .cornerRadius(10)
-                            }
-                        }
-                        .padding()
-                        .background(AppTheme.cardNavy)
-                        .cornerRadius(16)
                     }
 
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("وصف التطبيق")
+                        Text(loc.tr("description"))
                             .font(.headline.bold())
                             .foregroundColor(AppTheme.textTitle)
 
@@ -145,27 +68,24 @@ struct AppDetailView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding()
                     .background(AppTheme.cardNavy)
-                    .cornerRadius(16)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
                 }
                 .padding()
             }
         }
-        .environment(\.layoutDirection, .rightToLeft)
-        .sheet(isPresented: $showShareSheet) {
-            if let fileURL = shareURL {
-                ShareActivityView(activityItems: [fileURL])
+        .environment(\.layoutDirection, loc.currentLanguage == .ar ? .rightToLeft : .leftToRight)
+    }
+
+    private func installDirectly(_ url: URL) {
+        let urlString = url.absoluteString
+        if urlString.hasPrefix("itms-services://") {
+            UIApplication.shared.open(url)
+        } else if urlString.hasSuffix(".plist") {
+            if let itmsURL = URL(string: "itms-services://?action=download-manifest&url=\(urlString)") {
+                UIApplication.shared.open(itmsURL)
             }
+        } else {
+            UIApplication.shared.open(url)
         }
     }
-}
-
-// نافذة المشاركة والتثبيت
-struct ShareActivityView: UIViewControllerRepresentable {
-    let activityItems: [Any]
-
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
-    }
-
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
