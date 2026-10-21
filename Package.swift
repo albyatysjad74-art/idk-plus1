@@ -12,7 +12,11 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "idkPlus",
-            path: "App"
+            path: "App",
+            resources: [
+                .process("Lokgojo.png"),
+                .process("Logo.png")
+            ]
         )
     ]
 )
