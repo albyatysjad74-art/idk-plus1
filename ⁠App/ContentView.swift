@@ -3,13 +3,13 @@ import SwiftUI
 struct ContentView: View {
     @StateObject private var viewModel = StoreViewModel()
 
-    // ألوان الأزرق الليلي المريحة جداً للعين
-    private let bgDeepBlue = Color(red: 0.04, green: 0.08, blue: 0.16)      // خلفية داكنة مريحة #0A1428
-    private let cardNavy = Color(red: 0.09, green: 0.15, blue: 0.27)        // بطاقة كحلية هادئة #172645
-    private let cardBorder = Color(red: 0.15, green: 0.24, blue: 0.40)      // إطار خفيف للبطاقة
-    private let textTitle = Color(red: 0.96, green: 0.97, blue: 1.0)        // نصوص بيضاء ناصعة
-    private let textSecondary = Color(red: 0.65, green: 0.74, blue: 0.88)    // رمادي-أزرق هادئ للوصف
-    private let vibrantBlue = Color(red: 0.12, green: 0.53, blue: 0.98)      // أزرق زر التحميل والأيقونات
+    // ألوان الأزرق الليلي المريحة للعين
+    private let bgDeepBlue = Color(red: 0.04, green: 0.08, blue: 0.16)      // خلفية داكنة #0A1428
+    private let cardNavy = Color(red: 0.09, green: 0.15, blue: 0.27)        // بطاقة كحلية #172645
+    private let cardBorder = Color(red: 0.15, green: 0.24, blue: 0.40)      // إطار البطاقة
+    private let textTitle = Color(red: 0.96, green: 0.97, blue: 1.0)        // نصوص بيضاء
+    private let textSecondary = Color(red: 0.65, green: 0.74, blue: 0.88)    // نصوص رمادية للوصف
+    private let vibrantBlue = Color(red: 0.12, green: 0.53, blue: 0.98)      // أزرق الأزرار والتفاعل
 
     var body: some View {
         NavigationView {
@@ -20,7 +20,7 @@ struct ContentView: View {
                     // الشريط الإحصائي العلوي
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("سورس كيرا بلس")
+                            Text("متجر idk Plus")
                                 .font(.caption.bold())
                                 .foregroundColor(vibrantBlue)
                             Text("التطبيقات والألعاب المتاحة")
@@ -30,7 +30,7 @@ struct ContentView: View {
 
                         Spacer()
 
-                        // عداد التطبيقات (يعرض أكثر من 1100 تطبيق)
+                        // عداد التطبيقات الفعلي
                         HStack(spacing: 6) {
                             Image(systemName: "gamecontroller.fill")
                                 .foregroundColor(.white)
@@ -55,7 +55,7 @@ struct ContentView: View {
                             ProgressView()
                                 .tint(vibrantBlue)
                                 .scaleEffect(1.4)
-                            Text("جاري تحميل أكثر من 1100 تطبيق ولعبة...")
+                            Text("جاري تحميل التطبيقات والألعاب...")
                                 .font(.subheadline)
                                 .foregroundColor(textSecondary)
                         }
@@ -73,7 +73,7 @@ struct ContentView: View {
                         Spacer()
                     } else {
                         List(viewModel.filteredApps) { app in
-                            KiraAppCard(
+                            AppCardView(
                                 app: app,
                                 cardBg: cardNavy,
                                 borderColor: cardBorder,
@@ -87,17 +87,17 @@ struct ContentView: View {
                         }
                         .listStyle(.plain)
                         .refreshable {
-                            await viewModel.loadKiraApps()
+                            await viewModel.loadApps()
                         }
                     }
                 }
             }
             .navigationTitle("idk Plus")
-            .searchable(text: $viewModel.searchText, prompt: "ابحث بين 1100+ تطبيق ولعبة...")
-            .preferredColorScheme(.dark) // يمنع خربطة الخطوط مع خلفيات النظام في TrollStore
+            .searchable(text: $viewModel.searchText, prompt: "ابحث عن تطبيق أو لعبة...")
+            .preferredColorScheme(.dark)
             .task {
                 if viewModel.apps.isEmpty {
-                    await viewModel.loadKiraApps()
+                    await viewModel.loadApps()
                 }
             }
         }
@@ -106,8 +106,8 @@ struct ContentView: View {
     }
 }
 
-// تصميم بطاقة التطبيق الزرقاء العصرية
-struct KiraAppCard: View {
+// تصميم بطاقة التطبيق
+struct AppCardView: View {
     let app: AppItem
     let cardBg: Color
     let borderColor: Color
@@ -142,7 +142,7 @@ struct KiraAppCard: View {
                     .stroke(borderColor, lineWidth: 1)
             )
 
-            // نصوص التطبيق عالية التباين والوضوح
+            // نصوص وتفاصيل التطبيق
             VStack(alignment: .leading, spacing: 4) {
                 Text(app.name)
                     .font(.system(size: 15, weight: .bold))
@@ -161,7 +161,7 @@ struct KiraAppCard: View {
 
             Spacer()
 
-            // زر التثبيت الأزرق
+            // زر التثبيت
             if let targetURL = app.downloadURL, !targetURL.absoluteString.isEmpty {
                 Link(destination: targetURL) {
                     Text("تثبيت")
