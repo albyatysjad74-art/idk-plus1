@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macos-13
 
     steps:
       - name: Checkout Code
@@ -18,7 +18,7 @@ jobs:
           mkdir -p Payload/idkPlus.app
 
           # البحث عن ملفات Swift الخاصة بالمتجر وتجميعها
-          SWIFT_FILES=$(find . -maxdepth 3 -name "*.swift" ! -name "Package.swift" ! -path "*/.*/*" ! -path "*/test/*")
+          SWIFT_FILES=$(find . -maxdepth 4 -name "*.swift" ! -name "Package.swift" ! -path "*/.*/*" ! -path "*/test/*")
           echo "Found Swift files:"
           echo "$SWIFT_FILES"
 
@@ -35,7 +35,11 @@ jobs:
           # ضبط صلاحيات التشغيل للملف الثنائي
           chmod +x Payload/idkPlus.app/idkPlus
 
-          # إنشاء ملف Info.plist الرسمي بالتسمية والبندل المطلوب
+          # نسخ الصور إلى داخل حزمة التطبيق لتظهر في البداية وكأيقونة
+          cp App/Logo.png Payload/idkPlus.app/ 2>/dev/null || cp Logo.png Payload/idkPlus.app/ 2>/dev/null || true
+          cp App/Lokgojo.png Payload/idkPlus.app/ 2>/dev/null || cp Lokgojo.png Payload/idkPlus.app/ 2>/dev/null || true
+
+          # إنشاء ملف Info.plist الرسمي شاملاً تعريف أيقونة Lokgojo
           cat << 'EOF' > Payload/idkPlus.app/Info.plist
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -61,6 +65,19 @@ jobs:
               <true/>
               <key>UILaunchScreen</key>
               <dict/>
+              <key>CFBundleIcons</key>
+              <dict>
+                  <key>CFBundlePrimaryIcon</key>
+                  <dict>
+                      <key>CFBundleIconFiles</key>
+                      <array>
+                          <string>Lokgojo.png</string>
+                          <string>Lokgojo</string>
+                      </array>
+                      <key>UIPrerenderedIcon</key>
+                      <true/>
+                  </dict>
+              </dict>
           </dict>
           </plist>
           EOF
