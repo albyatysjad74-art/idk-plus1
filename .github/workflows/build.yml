@@ -24,7 +24,7 @@ jobs:
           mkdir -p build_objs
           mkdir -p App
 
-          # استبعاد ملف zsign.cpp فقط حتى لا يحصل تضارب في دالة main مع Swift
+          # حذف zsign.cpp لتفادي تضارب دالة main
           rm -f vendor/zsign/zsign.cpp
 
           # 1. إنشاء ملف الترويسة للجسر
@@ -40,12 +40,13 @@ jobs:
           @end
           EOF
 
-          # 2. إنشاء الجسر البرمجي باستخدام ZBundle و ZSignAsset الأصلية
+          # 2. إنشاء الجسر البرمجي بتمرير البارامترات الثمانية الصحيحة لـ zsign
           cat << 'EOF' > App/ZSignBridge.mm
           #import "ZSignBridge.h"
           #import <Foundation/Foundation.h>
           #include <iostream>
           #include <string>
+          #include <vector>
           #include "bundle.h"
 
           @implementation ZSignBridge
@@ -63,19 +64,22 @@ jobs:
               std::string strOut = [outputPath UTF8String];
 
               ZSignAsset zAsset;
-              if (!zAsset.Init("", strP12, strProv, strPass, "")) {
+              // Init(strSignerCertFile, strPkeyFile, strProvFile, strPass, strKeyPass, strInPkeyFile, bVerify, bInVerify)
+              if (!zAsset.Init("", strP12, strProv, strPass, "", "", false, false)) {
                   return NO;
               }
 
               ZBundle zBundle;
-              bool success = zBundle.SignFolder(&zAsset, strIPA, "", "", "", "", false, false, false, false);
+              std::vector<std::string> emptyDylibs;
+              // SignFolder(pSignAsset, strFolder, strBundleId, strDisplayName, strDyLibFile, arrDyLibFiles, bForce, bWeakInject, bEnableCache, bGenerateIPA)
+              bool success = zBundle.SignFolder(&zAsset, strIPA, "", "", "", emptyDylibs, false, false, false, false);
               return success ? YES : NO;
           }
 
           @end
           EOF
 
-          # 3. ترجمة ملفات C الخاصة بـ minizip بدون ملفات ويندوز
+          # 3. ترجمة ملفات C الخاصة بـ minizip بدون ملفات Windows
           echo "Compiling POSIX C files (minizip)..."
           C_FILES=$(find vendor/zsign -name "*.c" ! -name "*win32*" ! -name "*iowin32*")
           if [ -n "$C_FILES" ]; then
