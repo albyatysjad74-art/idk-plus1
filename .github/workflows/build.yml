@@ -22,8 +22,50 @@ jobs:
         run: |
           mkdir -p Payload/idkPlus.app
           mkdir -p build_objs
+          mkdir -p App
 
-          # 1. ترجمة C++ لـ zsign مع تضمين مسارات common و third-party
+          # إنشاء ملفات الجسر تلقائياً في المكان الصحيح
+          cat << 'EOF' > App/ZSignBridge.h
+          #import <Foundation/Foundation.h>
+
+          @interface ZSignBridge : NSObject
+          + (BOOL)signIPA:(NSString *)ipaPath
+                  p12Path:(NSString *)p12Path
+                 provPath:(NSString *)provPath
+                 password:(NSString *)password
+               outputPath:(NSString *)outputPath;
+          @end
+          EOF
+
+          cat << 'EOF' > App/ZSignBridge.mm
+          #import "ZSignBridge.h"
+          #import <Foundation/Foundation.h>
+          #include <iostream>
+          #include <string>
+          #include "vendor/zsign/bundle.h"
+
+          @implementation ZSignBridge
+          + (BOOL)signIPA:(NSString *)ipaPath
+                  p12Path:(NSString *)p12Path
+                 provPath:(NSString *)provPath
+                 password:(NSString *)password
+               outputPath:(NSString *)outputPath {
+              std::string strIPA = [ipaPath UTF8String];
+              std::string strP12 = [p12Path UTF8String];
+              std::string strProv = [provPath UTF8String];
+              std::string strPass = [password UTF8String];
+              std::string strOut = [outputPath UTF8String];
+
+              ZAppBundle bundle;
+              if (!bundle.SignFolder(strIPA, strP12, strProv, strPass, "", "", "", false)) {
+                  return NO;
+              }
+              return YES;
+          }
+          @end
+          EOF
+
+          # 1. ترجمة C++ لـ zsign مع المسارات المطلوبة
           echo "Compiling zsign C++ files..."
           xcrun -sdk iphoneos clang++ -c \
             vendor/zsign/*.cpp \
@@ -56,7 +98,7 @@ jobs:
           echo "Found Swift files:"
           echo "$SWIFT_FILES"
 
-          # 4. الربط والتجميع
+          # 4. التجميع والربط النهائي
           echo "Linking binary with Swift..."
           xcrun -sdk iphoneos swiftc $SWIFT_FILES build_objs/*.o \
             -target arm64-apple-ios16.0 \
@@ -76,7 +118,7 @@ jobs:
 
           chmod +x Payload/idkPlus.app/idkPlus
 
-          # 5. نسخ الإعدادات والأيقونات
+          # 5. نسخ الملفات التعريفية والأيقونات
           if [ -f "Info.plist" ]; then
             cp Info.plist Payload/idkPlus.app/Info.plist
           fi
