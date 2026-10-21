@@ -5,7 +5,6 @@ on:
     branches: [ "master", "main" ]
   workflow_dispatch:
 
-# إلغاء أي بناء قديم تلقائياً لتفريغ السيرفر وعدم التعليق في الطابور
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -22,15 +21,45 @@ jobs:
       - name: Build Real iOS Binary & IPA
         run: |
           mkdir -p Payload/idkPlus.app
+          mkdir -p build_objs
 
-          # البحث التلقائي عن ملفات Swift وتجميعها
+          # 1. ترجمة جميع ملفات C++ الخاصة بـ zsign إلى كائنات (.o)
+          echo "Compiling zsign C++ files..."
+          xcrun -sdk iphoneos clang++ -c vendor/zsign/*.cpp \
+            -I vendor/openssl/include \
+            -I vendor/zsign \
+            -target arm64-apple-ios16.0 \
+            -std=c++11 \
+            -fmodules \
+            -fcxx-modules
+
+          mv *.o build_objs/ 2>/dev/null || true
+
+          # 2. ترجمة ملف الجسر Objective-C++ (ZSignBridge.mm)
+          echo "Compiling ZSignBridge..."
+          xcrun -sdk iphoneos clang++ -c App/ZSignBridge.mm \
+            -I vendor/openssl/include \
+            -I vendor/zsign \
+            -I App \
+            -target arm64-apple-ios16.0 \
+            -std=c++11 \
+            -fmodules \
+            -fcxx-modules \
+            -o build_objs/ZSignBridge.o
+
+          # 3. جمع ملفات Swift
           SWIFT_FILES=$(find . -maxdepth 4 -name "*.swift" ! -name "Package.swift" ! -path "*/.*/*" ! -path "*/test/*")
           echo "Found Swift files:"
           echo "$SWIFT_FILES"
 
-          # ترجمة الكود لمعمارية arm64 المتوافقة مع iOS 16.0 فما فوق
-          xcrun -sdk iphoneos swiftc $SWIFT_FILES \
+          # 4. ترجمة وربط Swift مع C++ ومكتبات OpenSSL و zlib
+          echo "Linking binary with Swift..."
+          xcrun -sdk iphoneos swiftc $SWIFT_FILES build_objs/*.o \
             -target arm64-apple-ios16.0 \
+            -import-objc-header App/ZSignBridge.h \
+            -I vendor/openssl/include \
+            -L vendor/openssl \
+            -lcrypto -lssl -lz \
             -parse-as-library \
             -emit-executable \
             -o Payload/idkPlus.app/idkPlus \
@@ -40,17 +69,16 @@ jobs:
 
           chmod +x Payload/idkPlus.app/idkPlus
 
-          # نسخ ملف Info.plist الرسمي
+          # 5. نسخ الإعدادات والأيقونات
           if [ -f "Info.plist" ]; then
             cp Info.plist Payload/idkPlus.app/Info.plist
           fi
 
-          # نسخ الصور أينما كانت بجميع التسميات المطلوبة للأيقونة والواجهة
           find . -name "Logo.png" -exec cp {} Payload/idkPlus.app/Logo.png \;
           find . -name "Lokgojo.png" -exec cp {} Payload/idkPlus.app/Lokgojo.png \;
           find . -name "Lokgojo.png" -exec cp {} Payload/idkPlus.app/AppIcon.png \;
 
-          # حزم التطبيق بصيغة IPA
+          # 6. ضغط الـ IPA
           zip -qry idkPlus.ipa Payload
 
       - name: Upload IPA File
