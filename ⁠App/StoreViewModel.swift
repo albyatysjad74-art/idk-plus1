@@ -7,8 +7,8 @@ class StoreViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var searchText: String = ""
 
-    // رابط سورس كيرا المباشر (يحتوي أكثر من 1100 تطبيق ولعبة)
-    private let kiraSourceURL = "https://raw.githubusercontent.com/ikiraplus/ipastore/main/jom.json"
+    // رابط سورس التطبيقات المباشر
+    private let sourceURL = "https://raw.githubusercontent.com/ikiraplus/ipastore/main/jom.json"
 
     // تصفية التطبيقات للبحث الفوري
     var filteredApps: [AppItem] {
@@ -24,42 +24,61 @@ class StoreViewModel: ObservableObject {
     }
 
     // جلب جميع التطبيقات من السورس
-    func loadKiraApps() async {
+    func loadApps() async {
         isLoading = true
-        guard let url = URL(string: kiraSourceURL) else {
+        guard let url = URL(string: sourceURL) else {
             isLoading = false
             return
         }
 
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
+            let (data, response) = try await URLSession.shared.data(from: url)
             
-            // قراءة مرنة لضمان جلب كل العناصر دون استثناء حتى مع اختلاف مسميات المفاتيح
-            if let jsonArray = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
-                var loadedItems: [AppItem] = []
-                loadedItems.reserveCapacity(jsonArray.count)
-
-                for (idx, dict) in jsonArray.enumerated() {
-                    let name = dict["name"] as? String ?? dict["title"] as? String ?? "تطبيق بلس"
-                    let version = dict["version"] as? String ?? dict["ver"] as? String ?? "1.0"
-                    let desc = dict["description"] as? String ?? dict["desc"] as? String ?? "تطبيق من سورس كيرا بلس"
-                    let iconStr = dict["icon"] as? String ?? dict["image"] as? String ?? ""
-                    let downloadStr = dict["downloadLink"] as? String ?? dict["link"] as? String ?? dict["url"] as? String ?? dict["ipa"] as? String ?? ""
-
-                    loadedItems.append(AppItem(
-                        id: "kira-\(idx)",
-                        name: name,
-                        version: version,
-                        description: desc,
-                        iconURL: URL(string: iconStr),
-                        downloadURL: URL(string: downloadStr)
-                    ))
-                }
-
-                self.apps = loadedItems
+            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode != 200 {
+                print("فشل الاتصال، رمز الاستجابة: \(httpResponse.statusCode)")
+                isLoading = false
+                return
             }
+
+            let jsonObject = try JSONSerialization.jsonObject(with: data)
+            var targetArray: [[String: Any]] = []
+
+            // التعامل مع السورس سواء كان قاموس أو مصفوفة مباشرة
+            if let dict = jsonObject as? [String: Any] {
+                if let apps = dict["apps"] as? [[String: Any]] {
+                    targetArray = apps
+                } else if let items = dict["items"] as? [[String: Any]] {
+                    targetArray = items
+                }
+            } else if let directArray = jsonObject as? [[String: Any]] {
+                targetArray = directArray
+            }
+
+            var loadedItems: [AppItem] = []
+            loadedItems.reserveCapacity(targetArray.count)
+
+            for (idx, dict) in targetArray.enumerated() {
+                let name = dict["name"] as? String ?? dict["title"] as? String ?? "تطبيق"
+                let version = dict["version"] as? String ?? dict["ver"] as? String ?? "1.0"
+                let desc = dict["description"] as? String ?? dict["desc"] as? String ?? "تطبيق بلس متوافق مع iOS 16"
+                let iconStr = dict["icon"] as? String ?? dict["iconURL"] as? String ?? dict["image"] as? String ?? ""
+                let downloadStr = dict["downloadLink"] as? String ?? dict["downloadURL"] as? String ?? dict["link"] as? String ?? dict["url"] as? String ?? dict["ipa"] as? String ?? ""
+
+                loadedItems.append(AppItem(
+                    id: "app-\(idx)",
+                    name: name,
+                    version: version,
+                    description: desc,
+                    iconURL: URL(string: iconStr),
+                    downloadURL: URL(string: downloadStr)
+                ))
+            }
+
+            self.apps = loadedItems
+            print("تم جلب \(loadedItems.count) تطبيق بنجاح.")
+
         } catch {
-            print("خطأ في قراءة سورس كيرا: \(error)")
+            print("خطأ أثناء معالجة البيانات: \(error)")
         }
 
         isLoading = false
