@@ -1,55 +1,55 @@
 import SwiftUI
 
 struct SearchSectionView: View {
-    @ObservedObject var viewModel: StoreViewModel
-    @State private var selectedApp: AppItem? = nil
+    @StateObject private var viewModel = StoreViewModel()
+    @ObservedObject private var loc = LocalizationManager.shared
 
     var body: some View {
-        NavigationView {
-            ZStack {
-                AppTheme.bgDeepBlue.ignoresSafeArea()
+        ZStack {
+            AppTheme.bgDeepBlue.ignoresSafeArea()
 
-                VStack {
-                    if viewModel.searchText.isEmpty {
-                        Spacer()
-                        VStack(spacing: 12) {
-                            Image(systemName: "magnifyingglass.circle")
-                                .font(.system(size: 60))
-                                .foregroundColor(AppTheme.textSecondary.opacity(0.4))
-                            Text("اكتب اسم التطبيق أو اللعبة للبحث المباشر")
-                                .font(.subheadline)
+            VStack(spacing: 12) {
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(AppTheme.textSecondary)
+                    TextField(loc.tr("search_placeholder"), text: $viewModel.searchText)
+                        .foregroundColor(.white)
+                    if !viewModel.searchText.isEmpty {
+                        Button(action: { viewModel.searchText = "" }) {
+                            Image(systemName: "xmark.circle.fill")
                                 .foregroundColor(AppTheme.textSecondary)
-                        }
-                        Spacer()
-                    } else if viewModel.displayedApps.isEmpty {
-                        Spacer()
-                        Text("لا توجد نتائج مطابقة لبحثك")
-                            .foregroundColor(AppTheme.textSecondary)
-                        Spacer()
-                    } else {
-                        ScrollView {
-                            LazyVStack(spacing: 10) {
-                                ForEach(viewModel.displayedApps) { app in
-                                    AppCardView(app: app)
-                                        .contentShape(Rectangle())
-                                        .onTapGesture {
-                                            selectedApp = app
-                                        }
-                                }
-                            }
-                            .padding(.horizontal, 14)
-                            .padding(.top, 8)
                         }
                     }
                 }
-            }
-            .navigationTitle("بحث التطبيقات")
-            .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $viewModel.searchText, prompt: "ابحث بين آلاف التطبيقات...")
-            .sheet(item: $selectedApp) { app in
-                AppDetailView(app: app)
+                .padding(12)
+                .background(AppTheme.cardNavy)
+                .cornerRadius(12)
+                .padding(.horizontal)
+                .padding(.top, 10)
+
+                if viewModel.isLoading {
+                    Spacer()
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.vibrantBlue))
+                    Spacer()
+                } else if viewModel.displayedApps.isEmpty {
+                    Spacer()
+                    Text(loc.currentLanguage == .ar ? "لا توجد نتائج مطابقة" : "No matching results")
+                        .foregroundColor(AppTheme.textSecondary)
+                    Spacer()
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 12) {
+                            ForEach(viewModel.displayedApps) { app in
+                                AppCardView(app: app)
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+                }
             }
         }
-        .navigationViewStyle(.stack)
+        .environment(\.layoutDirection, loc.currentLanguage == .ar ? .rightToLeft : .leftToRight)
+        .navigationTitle(loc.tr("search"))
     }
 }
