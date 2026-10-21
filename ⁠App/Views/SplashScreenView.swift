@@ -1,6 +1,14 @@
 import SwiftUI
 
 struct SplashScreenView: View {
+    // دالة مساعدة لتحميل الصورة مباشرة من حزمة التطبيق (Bundle)
+    private var logoImage: UIImage? {
+        if let path = Bundle.main.path(forResource: "Logo", ofType: "png") {
+            return UIImage(contentsOfFile: path)
+        }
+        return UIImage(named: "Logo")
+    }
+
     var body: some View {
         ZStack {
             AppTheme.bgDeepBlue.ignoresSafeArea()
@@ -8,13 +16,23 @@ struct SplashScreenView: View {
             VStack(spacing: 24) {
                 Spacer()
 
-                // صورة الشعار المخصصة
-                Image("logo")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 110, height: 110)
-                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                    .shadow(color: AppTheme.vibrantBlue.opacity(0.5), radius: 15, x: 0, y: 5)
+                // عرض صورة Logo.png المرفوعة في المجلد
+                if let uiImage = logoImage {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 110, height: 110)
+                        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                        .shadow(color: AppTheme.vibrantBlue.opacity(0.6), radius: 18, x: 0, y: 5)
+                } else {
+                    // شكل احتياطي يظهر فقط إذا تعذر الوصول للملف
+                    Image(systemName: "flame.circle.fill")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 100, height: 100)
+                        .foregroundColor(AppTheme.vibrantBlue)
+                        .shadow(color: AppTheme.vibrantBlue.opacity(0.6), radius: 18, x: 0, y: 5)
+                }
 
                 VStack(spacing: 8) {
                     Text("idk Plus")
