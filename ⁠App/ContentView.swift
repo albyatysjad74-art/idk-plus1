@@ -30,11 +30,12 @@ struct ContentView: View {
 
                         Spacer()
 
+                        // العداد
                         HStack(spacing: 6) {
                             Image(systemName: "gamecontroller.fill")
                                 .foregroundColor(.white)
                                 .font(.caption)
-                            Text("\(viewModel.filteredApps.count) تطبيق")
+                            Text("\(viewModel.displayedApps.count) من \(viewModel.totalCount)")
                                 .font(.footnote.bold())
                                 .foregroundColor(.white)
                         }
@@ -42,58 +43,57 @@ struct ContentView: View {
                         .padding(.vertical, 7)
                         .background(vibrantBlue)
                         .clipShape(Capsule())
-                        .shadow(color: vibrantBlue.opacity(0.4), radius: 6, x: 0, y: 3)
                     }
                     .padding(.horizontal, 18)
                     .padding(.vertical, 10)
 
                     // المحتوى
-                    if viewModel.isLoading && viewModel.apps.isEmpty {
+                    if viewModel.isLoading && viewModel.displayedApps.isEmpty {
                         Spacer()
-                        VStack(spacing: 14) {
-                            ProgressView()
-                                .tint(vibrantBlue)
-                                .scaleEffect(1.4)
-                            Text("جاري معالجة التطبيقات...")
-                                .font(.subheadline)
-                                .foregroundColor(textSecondary)
-                        }
+                        ProgressView()
+                            .tint(vibrantBlue)
+                            .scaleEffect(1.4)
                         Spacer()
-                    } else if viewModel.filteredApps.isEmpty {
+                    } else if viewModel.displayedApps.isEmpty {
                         Spacer()
                         VStack(spacing: 8) {
                             Image(systemName: "magnifyingglass")
-                                .font(.system(size: 42))
+                                .font(.system(size: 40))
                                 .foregroundColor(textSecondary.opacity(0.5))
-                            Text("لا توجد لعبة أو تطبيق بهذا الاسم")
+                            Text("لا توجد نتائج")
                                 .font(.subheadline)
                                 .foregroundColor(textSecondary)
                         }
                         Spacer()
                     } else {
-                        List(viewModel.paginatedApps) { app in
-                            AppCardView(
-                                app: app,
-                                cardBg: cardNavy,
-                                borderColor: cardBorder,
-                                titleColor: textTitle,
-                                subtitleColor: textSecondary,
-                                accentColor: vibrantBlue
-                            )
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                selectedApp = app
+                        ScrollView {
+                            LazyVStack(spacing: 10) {
+                                ForEach(viewModel.displayedApps) { app in
+                                    AppCardView(
+                                        app: app,
+                                        cardBg: cardNavy,
+                                        borderColor: cardBorder,
+                                        titleColor: textTitle,
+                                        subtitleColor: textSecondary,
+                                        accentColor: vibrantBlue
+                                    )
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        selectedApp = app
+                                    }
+                                    .onAppear {
+                                        viewModel.onItemAppear(app)
+                                    }
+                                }
+
+                                if viewModel.displayedApps.count < viewModel.totalCount {
+                                    ProgressView()
+                                        .tint(vibrantBlue)
+                                        .padding()
+                                }
                             }
-                            .onAppear {
-                                viewModel.loadMoreContentIfNeeded(currentItem: app)
-                            }
-                            .listRowBackground(Color.clear)
-                            .listRowSeparator(.hidden)
-                            .listRowInsets(EdgeInsets(top: 5, leading: 14, bottom: 5, trailing: 14))
-                        }
-                        .listStyle(.plain)
-                        .refreshable {
-                            await viewModel.loadApps()
+                            .padding(.horizontal, 14)
+                            .padding(.top, 8)
                         }
                     }
                 }
@@ -102,11 +102,8 @@ struct ContentView: View {
             .searchable(text: $viewModel.searchText, prompt: "ابحث عن تطبيق أو لعبة...")
             .preferredColorScheme(.dark)
             .task {
-                if viewModel.apps.isEmpty {
-                    await viewModel.loadApps()
-                }
+                await viewModel.loadApps()
             }
-            // نافذة تفاصيل التطبيق عند الضغط عليه
             .sheet(item: $selectedApp) { app in
                 AppDetailView(app: app, bgNavy: cardNavy, accentColor: vibrantBlue)
             }
@@ -116,7 +113,7 @@ struct ContentView: View {
     }
 }
 
-// تصميم بطاقة التطبيق في القائمة
+// تصميم بطاقة التطبيق
 struct AppCardView: View {
     let app: AppItem
     let cardBg: Color
@@ -128,26 +125,22 @@ struct AppCardView: View {
     var body: some View {
         HStack(spacing: 12) {
             AsyncImage(url: app.iconURL) { phase in
-                if let img = phase.image {
-                    img.resizable().scaledToFill()
-                } else if phase.error != nil {
+                switch phase {
+                case .success(let image):
+                    image.resizable().scaledToFill()
+                default:
                     ZStack {
-                        accentColor.opacity(0.2)
+                        accentColor.opacity(0.15)
                         Image(systemName: "app.fill")
                             .foregroundColor(accentColor)
                             .font(.system(size: 24))
                     }
-                } else {
-                    ZStack {
-                        cardBg
-                        ProgressView().tint(accentColor)
-                    }
                 }
             }
-            .frame(width: 58, height: 58)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .frame(width: 56, height: 56)
+            .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: 13, style: .continuous)
                     .stroke(borderColor, lineWidth: 1)
             )
 
@@ -178,7 +171,6 @@ struct AppCardView: View {
                         .background(accentColor)
                         .foregroundColor(.white)
                         .clipShape(Capsule())
-                        .shadow(color: accentColor.opacity(0.35), radius: 4, x: 0, y: 2)
                 }
             }
         }
@@ -194,20 +186,18 @@ struct AppCardView: View {
     }
 }
 
-// نافذة تفاصيل التطبيق الكاملة
+// نافذة تفاصيل التطبيق عند الضغط عليه
 struct AppDetailView: View {
     let app: AppItem
     let bgNavy: Color
     let accentColor: Color
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         ZStack {
             Color(red: 0.04, green: 0.08, blue: 0.16).ignoresSafeArea()
 
             ScrollView {
-                VStack(spacing: 20) {
-                    // أيقونة ومعلومات الرأس
+                VStack(spacing: 18) {
                     HStack(spacing: 16) {
                         AsyncImage(url: app.iconURL) { phase in
                             if let img = phase.image {
@@ -215,19 +205,19 @@ struct AppDetailView: View {
                             } else {
                                 Image(systemName: "app.fill")
                                     .foregroundColor(accentColor)
-                                    .font(.system(size: 40))
+                                    .font(.system(size: 38))
                             }
                         }
-                        .frame(width: 80, height: 80)
-                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .frame(width: 75, height: 75)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
-                        VStack(alignment: .leading, spacing: 6) {
+                        VStack(alignment: .leading, spacing: 5) {
                             Text(app.name)
                                 .font(.title3.bold())
                                 .foregroundColor(.white)
 
                             Text("الإصدار: \(app.version)")
-                                .font(.subheadline)
+                                .font(.subheadline.bold())
                                 .foregroundColor(accentColor)
                         }
                         Spacer()
@@ -236,14 +226,13 @@ struct AppDetailView: View {
                     .background(bgNavy)
                     .clipShape(RoundedRectangle(cornerRadius: 16))
 
-                    // زر التحميل المباشر
                     if let targetURL = app.downloadURL, !targetURL.absoluteString.isEmpty {
                         Link(destination: targetURL) {
                             HStack {
                                 Image(systemName: "arrow.down.circle.fill")
-                                Text("تثبيت التطبيق (IPA)")
+                                Text("تثبيت التطبيق الآن")
                             }
-                            .font(.headline)
+                            .font(.headline.bold())
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
                             .padding()
@@ -252,16 +241,15 @@ struct AppDetailView: View {
                         }
                     }
 
-                    // الوصف الكامل
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("عن التطبيق")
-                            .font(.headline)
+                        Text("وصف التطبيق")
+                            .font(.headline.bold())
                             .foregroundColor(.white)
 
                         Text(app.description)
                             .font(.body)
-                            .foregroundColor(Color.gray.opacity(0.9))
-                            .lineSpacing(4)
+                            .foregroundColor(Color.white.opacity(0.8))
+                            .lineSpacing(5)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding()
