@@ -37,7 +37,7 @@ jobs:
           @end
           EOF
 
-          # إنشاء ملف الجسر باستدعاء ZSignMain النظيف
+          # إنشاء ملف الجسر باستدعاء zsign_main
           cat << 'EOF' > App/ZSignBridge.mm
           #import "ZSignBridge.h"
           #import <Foundation/Foundation.h>
@@ -80,16 +80,29 @@ jobs:
           @end
           EOF
 
-          # تعديل main() في كود zsign ليصبح دالة قابلة للاستدعاء zsign_main()
+          # تعديل main() في كود zsign ليصبح zsign_main()
           if [ -f "vendor/zsign/zsign.cpp" ]; then
             sed -i '' 's/int main(/int zsign_main(/g' vendor/zsign/zsign.cpp
           fi
 
-          # 1. ترجمة C++ لـ zsign
-          echo "Compiling zsign C++ files..."
-          xcrun -sdk iphoneos clang++ -c \
-            vendor/zsign/*.cpp \
-            vendor/zsign/common/*.cpp \
+          # 1. ترجمة جميع ملفات C (بما فيها minizip / unzip)
+          echo "Compiling C files (minizip/zip)..."
+          C_FILES=$(find vendor/zsign -name "*.c")
+          if [ -n "$C_FILES" ]; then
+            xcrun -sdk iphoneos clang -c $C_FILES \
+              -I vendor/openssl/include \
+              -I vendor/zsign \
+              -I vendor/zsign/common \
+              -I vendor/zsign/third-party \
+              -target arm64-apple-ios16.0 \
+              -w
+            mv *.o build_objs/ 2>/dev/null || true
+          fi
+
+          # 2. ترجمة جميع ملفات C++ لـ zsign
+          echo "Compiling C++ files..."
+          CPP_FILES=$(find vendor/zsign -name "*.cpp")
+          xcrun -sdk iphoneos clang++ -c $CPP_FILES \
             -I vendor/openssl/include \
             -I vendor/zsign \
             -I vendor/zsign/common \
@@ -97,10 +110,9 @@ jobs:
             -target arm64-apple-ios16.0 \
             -std=c++11 \
             -w
-
           mv *.o build_objs/ 2>/dev/null || true
 
-          # 2. ترجمة ملف الجسر
+          # 3. ترجمة ملف الجسر ZSignBridge
           echo "Compiling ZSignBridge..."
           xcrun -sdk iphoneos clang++ -c App/ZSignBridge.mm \
             -I vendor/openssl/include \
@@ -113,12 +125,12 @@ jobs:
             -w \
             -o build_objs/ZSignBridge.o
 
-          # 3. جمع ملفات Swift
+          # 4. جمع ملفات Swift
           SWIFT_FILES=$(find . -maxdepth 4 -name "*.swift" ! -name "Package.swift" ! -path "*/.*/*" ! -path "*/test/*")
           echo "Found Swift files:"
           echo "$SWIFT_FILES"
 
-          # 4. الربط والتجميع النهائي
+          # 5. التجميع والربط النهائي (مع zlib, OpenSSL, و libc++)
           echo "Linking binary with Swift..."
           xcrun -sdk iphoneos swiftc $SWIFT_FILES build_objs/*.o \
             -target arm64-apple-ios16.0 \
@@ -128,7 +140,7 @@ jobs:
             -I vendor/zsign/common \
             -I vendor/zsign/third-party \
             -L vendor/openssl \
-            -lcrypto -lssl -lz \
+            -lcrypto -lssl -lz -lc++ \
             -parse-as-library \
             -emit-executable \
             -o Payload/idkPlus.app/idkPlus \
@@ -138,7 +150,7 @@ jobs:
 
           chmod +x Payload/idkPlus.app/idkPlus
 
-          # 5. نسخ الإعدادات والأيقونات
+          # 6. نسخ الإعدادات والأيقونات
           if [ -f "Info.plist" ]; then
             cp Info.plist Payload/idkPlus.app/Info.plist
           fi
@@ -147,7 +159,7 @@ jobs:
           find . -name "Lokgojo.png" -exec cp {} Payload/idkPlus.app/Lokgojo.png \;
           find . -name "Lokgojo.png" -exec cp {} Payload/idkPlus.app/AppIcon.png \;
 
-          # 6. ضغط الـ IPA
+          # 7. ضغط التطبيق إلى IPA
           zip -qry idkPlus.ipa Payload
 
       - name: Upload IPA File
