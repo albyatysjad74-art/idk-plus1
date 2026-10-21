@@ -22,10 +22,12 @@ jobs:
         run: |
           mkdir -p Payload/idkPlus.app
           mkdir -p build_objs
-          mkdir -p build_zsign_objs
           mkdir -p App
 
-          # 1. إنشاء ملف الترويسة للجسر
+          # 1. استبعاد أي ملف نقطة دخول لـ zsign لمنع التعارض مع نقطة دخول تطبيق Swift
+          rm -f vendor/zsign/zsign.cpp vendor/zsign/main.cpp
+
+          # 2. إنشاء ملف الترويسة للجسر البرمجي
           cat << 'EOF' > App/ZSignBridge.h
           #import <Foundation/Foundation.h>
 
@@ -38,13 +40,14 @@ jobs:
           @end
           EOF
 
-          # 2. إنشاء الجسر البرمجي باستدعاء أداة zsign المدمجة
+          # 3. إنشاء تطبيق الجسر بالربط الداخلي مع ZBundle (10 معاملات كاملة ومطابقة)
           cat << 'EOF' > App/ZSignBridge.mm
           #import "ZSignBridge.h"
           #import <Foundation/Foundation.h>
-          #include <spawn.h>
-          #include <sys/wait.h>
+          #include <iostream>
+          #include <string>
           #include <vector>
+          #include "bundle.h"
 
           @implementation ZSignBridge
 
@@ -54,63 +57,48 @@ jobs:
                  password:(NSString *)password
                outputPath:(NSString *)outputPath {
 
-              NSString *zsignBin = [[NSBundle mainBundle] pathForResource:@"zsign" ofType:nil];
-              if (!zsignBin || ![[NSFileManager defaultManager] fileExistsAtPath:zsignBin]) {
-                  zsignBin = [[[NSBundle mainBundle] bundlePath] stringByAppendingPathComponent:@"zsign"];
+              std::string strIPA = [ipaPath UTF8String];
+              std::string strP12 = [p12Path UTF8String];
+              std::string strProv = [provPath UTF8String];
+              std::string strPass = password ? [password UTF8String] : "";
+
+              ZSignAsset zAsset;
+              // 8 معاملات كاملة لتهيئة الشهادة
+              if (!zAsset.Init("", strP12, strProv, strPass, "", "", false, false)) {
+                  return NO;
               }
 
-              NSMutableArray *args = [NSMutableArray array];
-              [args addObject:@"zsign"];
-              [args addObject:@"-k"];
-              [args addObject:p12Path];
-              [args addObject:@"-m"];
-              [args addObject:provPath];
-              [args addObject:@"-o"];
-              [args addObject:outputPath];
-
-              if (password && password.length > 0) {
-                  [args addObject:@"-p"];
-                  [args addObject:password];
-              }
-
-              [args addObject:ipaPath];
-
-              std::vector<const char*> c_args;
-              for (NSString *arg in args) {
-                  c_args.push_back([arg UTF8String]);
-              }
-              c_args.push_back(NULL);
-
-              pid_t pid;
-              int status;
-              if (posix_spawn(&pid, [zsignBin UTF8String], NULL, NULL, (char* const*)c_args.data(), NULL) == 0) {
-                  waitpid(pid, &status, 0);
-                  return WEXITSTATUS(status) == 0;
-              }
-              return NO;
+              ZBundle zBundle;
+              std::vector<std::string> emptyList;
+              // 10 معاملات كاملة: المعامل 6 و 7 كلاهما vector<string>
+              bool success = zBundle.SignFolder(&zAsset, strIPA, "", "", "", emptyList, emptyList, false, false, false);
+              return success ? YES : NO;
           }
 
           @end
           EOF
 
-          # 3. ترجمة ملفات C لـ minizip بمترجم C الصريح واستبعاد mztools و win32
-          echo "Compiling C files with clang (C)..."
+          # 4. ترجمة ملفات C الخاصة بـ minizip بمترجم C الصريح (C99) لتفادي أخطاء C++
+          echo "Compiling minizip C files..."
           C_FILES=$(find vendor/zsign -name "*.c" ! -name "*win32*" ! -name "*iowin32*" ! -name "*mztools*")
           for file in $C_FILES; do
+            OBJ_NAME="build_objs/c_$(echo "$file" | tr '/' '_').o"
             xcrun -sdk iphoneos clang -c "$file" \
+              -std=c99 \
               -I vendor/openssl/include \
               -I vendor/zsign \
               -I vendor/zsign/common \
               -I vendor/zsign/third-party \
               -target arm64-apple-ios16.0 \
               -w \
-              -o "build_zsign_objs/$(basename "$file" .c).o"
+              -o "$OBJ_NAME"
           done
 
-          # 4. ترجمة ملفات C++ لـ zsign
-          echo "Compiling C++ files with clang++..."
+          # 5. ترجمة ملفات C++ لـ zsign بمترجم C++11
+          echo "Compiling zsign C++ files..."
           CPP_FILES=$(find vendor/zsign -name "*.cpp")
           for file in $CPP_FILES; do
+            OBJ_NAME="build_objs/cpp_$(echo "$file" | tr '/' '_').o"
             xcrun -sdk iphoneos clang++ -c "$file" \
               -I vendor/openssl/include \
               -I vendor/zsign \
@@ -119,38 +107,36 @@ jobs:
               -target arm64-apple-ios16.0 \
               -std=c++11 \
               -w \
-              -o "build_zsign_objs/$(basename "$file" .cpp).o"
+              -o "$OBJ_NAME"
           done
 
-          # 5. ربط أداة zsign المستقلة
-          echo "Linking standalone zsign binary..."
-          xcrun -sdk iphoneos clang++ build_zsign_objs/*.o \
-            -L vendor/openssl \
-            -lcrypto -lssl -lz \
-            -target arm64-apple-ios16.0 \
-            -o Payload/idkPlus.app/zsign
-
-          chmod +x Payload/idkPlus.app/zsign
-
-          # 6. ترجمة ملف الجسر ZSignBridge
-          echo "Compiling ZSignBridge..."
+          # 6. ترجمة ملف الجسر ZSignBridge.mm
+          echo "Compiling ZSignBridge.mm..."
           xcrun -sdk iphoneos clang++ -c App/ZSignBridge.mm \
+            -I vendor/openssl/include \
+            -I vendor/zsign \
+            -I vendor/zsign/common \
+            -I vendor/zsign/third-party \
             -I App \
             -target arm64-apple-ios16.0 \
             -std=c++11 \
             -w \
             -o build_objs/ZSignBridge.o
 
-          # 7. جرد ملفات Swift
+          # 7. جرد ملفات واجهة Swift
           SWIFT_FILES=$(find . -maxdepth 4 -name "*.swift" ! -name "Package.swift" ! -path "*/.*/*" ! -path "*/test/*")
-          echo "Found Swift files:"
-          echo "$SWIFT_FILES"
 
-          # 8. ترجمة وربط تطبيق Swift مع الواجهة
+          # 8. الربط المباشر لجميع الكائنات مع تطبيق Swift كنواة واحدة
           echo "Linking binary with Swift..."
-          xcrun -sdk iphoneos swiftc $SWIFT_FILES build_objs/ZSignBridge.o \
+          xcrun -sdk iphoneos swiftc $SWIFT_FILES build_objs/*.o \
             -target arm64-apple-ios16.0 \
             -import-objc-header App/ZSignBridge.h \
+            -I vendor/openssl/include \
+            -I vendor/zsign \
+            -I vendor/zsign/common \
+            -I vendor/zsign/third-party \
+            -L vendor/openssl \
+            -lcrypto -lssl -lz -lc++ \
             -parse-as-library \
             -emit-executable \
             -o Payload/idkPlus.app/idkPlus \
@@ -160,7 +146,7 @@ jobs:
 
           chmod +x Payload/idkPlus.app/idkPlus
 
-          # 9. نسخ الملفات التعريفية والأيقونات
+          # 9. نسخ ملف التعريف والأيقونات
           if [ -f "Info.plist" ]; then
             cp Info.plist Payload/idkPlus.app/Info.plist
           fi
@@ -169,7 +155,7 @@ jobs:
           find . -name "Lokgojo.png" -exec cp {} Payload/idkPlus.app/Lokgojo.png \;
           find . -name "Lokgojo.png" -exec cp {} Payload/idkPlus.app/AppIcon.png \;
 
-          # 10. ضغط حزمة التطبيق النهائية
+          # 10. إنشاء حزمة التثبيت IPA
           zip -qry idkPlus.ipa Payload
 
       - name: Upload IPA File
