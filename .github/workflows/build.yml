@@ -24,7 +24,7 @@ jobs:
           mkdir -p build_objs
           mkdir -p App
 
-          # إنشاء ترويسة الجسر
+          # إنشاء ملف الجسر Header
           cat << 'EOF' > App/ZSignBridge.h
           #import <Foundation/Foundation.h>
 
@@ -37,14 +37,19 @@ jobs:
           @end
           EOF
 
-          # إنشاء تطبيق الجسر باستدعاء zsign_main
+          # تعديل أي دالة main لتصبح zsign_main في كل ملفات المشروع
+          find vendor/zsign -type f \( -name "*.cpp" -o -name "*.c" \) -exec sed -i '' -E 's/\bint[[:space:]]+main[[:space:]]*\(/int zsign_main(/g' {} +
+
+          # إنشاء كود الجسر Objective-C++
           cat << 'EOF' > App/ZSignBridge.mm
           #import "ZSignBridge.h"
           #import <Foundation/Foundation.h>
           #include <vector>
           #include <string>
 
-          extern int zsign_main(int argc, char* argv[]);
+          extern "C" int zsign_main(int argc, char* argv[]);
+          // في حال كانت الدالة بتنسيق C++ بدون extern C
+          int zsign_main(int argc, char* argv[]) __attribute__((weak));
 
           @implementation ZSignBridge
 
@@ -73,19 +78,17 @@ jobs:
                   c_args.push_back(&arg[0]);
               }
 
-              int result = zsign_main((int)c_args.size(), c_args.data());
-              return result == 0;
+              if (zsign_main) {
+                  int result = zsign_main((int)c_args.size(), c_args.data());
+                  return result == 0;
+              }
+              return NO;
           }
 
           @end
           EOF
 
-          # تعديل دالة main في zsign.cpp لتفادي التعارض مع Swift
-          if [ -f "vendor/zsign/zsign.cpp" ]; then
-            sed -i '' 's/int main(/int zsign_main(/g' vendor/zsign/zsign.cpp
-          fi
-
-          # 1. ترجمة ملفات C مع استبعاد ملفات Windows نهائياً
+          # 1. ترجمة ملفات C مع استبعاد ملفات Windows
           echo "Compiling POSIX C files (minizip)..."
           C_FILES=$(find vendor/zsign -name "*.c" ! -name "*win32*" ! -name "*iowin32*")
           if [ -n "$C_FILES" ]; then
@@ -112,7 +115,7 @@ jobs:
             -w
           mv *.o build_objs/ 2>/dev/null || true
 
-          # 3. ترجمة ملف الجسر ZSignBridge
+          # 3. ترجمة ملف الجسر
           echo "Compiling ZSignBridge..."
           xcrun -sdk iphoneos clang++ -c App/ZSignBridge.mm \
             -I vendor/openssl/include \
@@ -130,7 +133,7 @@ jobs:
           echo "Found Swift files:"
           echo "$SWIFT_FILES"
 
-          # 5. التجميع النهائي والربط (Linker)
+          # 5. التجميع النهائي والربط
           echo "Linking binary with Swift..."
           xcrun -sdk iphoneos swiftc $SWIFT_FILES build_objs/*.o \
             -target arm64-apple-ios16.0 \
@@ -159,7 +162,7 @@ jobs:
           find . -name "Lokgojo.png" -exec cp {} Payload/idkPlus.app/Lokgojo.png \;
           find . -name "Lokgojo.png" -exec cp {} Payload/idkPlus.app/AppIcon.png \;
 
-          # 7. إنشاء حزمة IPA
+          # 7. ضغط الـ IPA
           zip -qry idkPlus.ipa Payload
 
       - name: Upload IPA File
