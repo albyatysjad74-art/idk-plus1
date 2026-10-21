@@ -17,14 +17,14 @@ jobs:
         run: |
           mkdir -p Payload/idkPlus.app
 
-          # البحث عن ملفات Swift الخاصة بالمتجر وتجميعها
+          # البحث عن ملفات Swift وتجميعها
           SWIFT_FILES=$(find . -maxdepth 4 -name "*.swift" ! -name "Package.swift" ! -path "*/.*/*" ! -path "*/test/*")
           echo "Found Swift files:"
           echo "$SWIFT_FILES"
 
-          # ترجمة الكود إلى ملف تنفيذي أصلي لمعمارية الآيفون arm64
+          # ترجمة الكود التنفيذي ليعمل على iOS 16.0 فما فوق
           xcrun -sdk iphoneos swiftc $SWIFT_FILES \
-            -target arm64-apple-ios15.0 \
+            -target arm64-apple-ios16.0 \
             -parse-as-library \
             -emit-executable \
             -o Payload/idkPlus.app/idkPlus \
@@ -32,57 +32,17 @@ jobs:
             -framework Foundation \
             -framework UIKit
 
-          # ضبط صلاحيات التشغيل للملف الثنائي
+          # ضبط صلاحيات التشغيل
           chmod +x Payload/idkPlus.app/idkPlus
 
-          # نسخ الصور إلى داخل حزمة التطبيق لتظهر في البداية وكأيقونة
+          # نسخ ملف Info.plist الجاهز
+          cp Info.plist Payload/idkPlus.app/Info.plist
+
+          # نسخ الصور إلى داخل حزمة التطبيق
           cp App/Logo.png Payload/idkPlus.app/ 2>/dev/null || cp Logo.png Payload/idkPlus.app/ 2>/dev/null || true
           cp App/Lokgojo.png Payload/idkPlus.app/ 2>/dev/null || cp Lokgojo.png Payload/idkPlus.app/ 2>/dev/null || true
 
-          # إنشاء ملف Info.plist الرسمي شاملاً تعريف أيقونة Lokgojo
-          cat << 'EOF' > Payload/idkPlus.app/Info.plist
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>CFBundleExecutable</key>
-              <string>idkPlus</string>
-              <key>CFBundleIdentifier</key>
-              <string>com.idk.plus</string>
-              <key>CFBundleName</key>
-              <string>idk Plus</string>
-              <key>CFBundleDisplayName</key>
-              <string>idk Plus</string>
-              <key>CFBundlePackageType</key>
-              <string>APPL</string>
-              <key>CFBundleShortVersionString</key>
-              <string>1.0</string>
-              <key>CFBundleVersion</key>
-              <string>1</string>
-              <key>MinimumOSVersion</key>
-              <string>15.0</string>
-              <key>LSRequiresIPhoneOS</key>
-              <true/>
-              <key>UILaunchScreen</key>
-              <dict/>
-              <key>CFBundleIcons</key>
-              <dict>
-                  <key>CFBundlePrimaryIcon</key>
-                  <dict>
-                      <key>CFBundleIconFiles</key>
-                      <array>
-                          <string>Lokgojo.png</string>
-                          <string>Lokgojo</string>
-                      </array>
-                      <key>UIPrerenderedIcon</key>
-                      <true/>
-                  </dict>
-              </dict>
-          </dict>
-          </plist>
-          EOF
-
-          # حزم التطبيق بصيغة IPA
+          # إنشاء ملف الـ IPA
           zip -qry idkPlus.ipa Payload
 
       - name: Upload IPA File
