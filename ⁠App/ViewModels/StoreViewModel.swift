@@ -11,7 +11,6 @@ class StoreViewModel: ObservableObject {
 
     func fetchApps() {
         self.isLoading = true
-        // رابط سورس ESign الخاص بك
         guard let url = URL(string: "https://raw.githubusercontent.com/NEXT11DEV/NEXT-SOURCE/main/NEXTDEV-ESign.json") else {
             self.isLoading = false
             return
@@ -23,9 +22,9 @@ class StoreViewModel: ObservableObject {
                 guard let data = data, error == nil else { return }
                 
                 do {
-                    // فك ترميز بنية ESign Source
-                    let response = try JSONDecoder().decode(ESignSourceResponse.self, data: data)
-                    self?.apps = response.apps ?? []
+                    // استخدام from: data بدلاً من data: data
+                    let decodedResponse = try JSONDecoder().decode(ESignSourceResponse.self, from: data)
+                    self?.apps = decodedResponse.apps ?? []
                 } catch {
                     print("Error decoding ESign source: \(error)")
                 }
