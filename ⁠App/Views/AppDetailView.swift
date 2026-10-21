@@ -12,7 +12,6 @@ struct AppDetailView: View {
 
             ScrollView {
                 VStack(spacing: 18) {
-                    // تفاصيل التطبيق العلوية
                     HStack(spacing: 16) {
                         AsyncImage(url: app.iconURL) { phase in
                             if let img = phase.image {
@@ -41,7 +40,6 @@ struct AppDetailView: View {
                     .background(AppTheme.cardNavy)
                     .cornerRadius(16)
 
-                    // قسم التحميل ومؤشر التقدم الحقيقي
                     VStack(spacing: 12) {
                         if dlManager.isDownloading {
                             VStack(spacing: 8) {
@@ -92,7 +90,6 @@ struct AppDetailView: View {
                         }
                     }
 
-                    // قائمة التطبيقات الموقعة والمحفوظة للتثبيت السريع
                     if !dlManager.signedApps.isEmpty {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("التطبيقات الموقعة والجاهزة للتثبيت")
@@ -135,7 +132,6 @@ struct AppDetailView: View {
                         .cornerRadius(16)
                     }
 
-                    // وصف التطبيق
                     VStack(alignment: .leading, spacing: 10) {
                         Text("وصف التطبيق")
                             .font(.headline.bold())
@@ -161,4 +157,15 @@ struct AppDetailView: View {
             }
         }
     }
+}
+
+// نافذة المشاركة والتثبيت
+struct ShareActivityView: UIViewControllerRepresentable {
+    let activityItems: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
