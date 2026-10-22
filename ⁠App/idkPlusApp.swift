@@ -2,24 +2,31 @@ import SwiftUI
 
 @main
 struct idkPlusApp: App {
-    @State private var showSplash = true
+    @StateObject private var viewModel = StoreViewModel()
+    @State private var minTimeElapsed = false
+
+    // تفتح الواجهة فقط إذا انتهى التحميل ومرت ثانية ونصف على الأقل لشكل احترافي
+    private var canShowHome: Bool {
+        viewModel.isDataLoaded && minTimeElapsed
+    }
 
     var body: some Scene {
         WindowGroup {
             ZStack {
                 ContentView()
-                    .opacity(showSplash ? 0 : 1)
+                    .environmentObject(viewModel)
+                    .opacity(canShowHome ? 1 : 0)
 
-                if showSplash {
+                if !canShowHome {
                     SplashScreenView()
                         .transition(.opacity)
                         .zIndex(1)
                 }
             }
             .onAppear {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                    withAnimation(.easeInOut(duration: 0.5)) {
-                        showSplash = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    withAnimation(.easeInOut(duration: 0.4)) {
+                        minTimeElapsed = true
                     }
                 }
             }
