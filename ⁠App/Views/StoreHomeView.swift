@@ -1,15 +1,15 @@
 import SwiftUI
 
 struct StoreHomeView: View {
-    @StateObject private var viewModel = StoreViewModel()
+    @EnvironmentObject var viewModel: StoreViewModel
     @ObservedObject private var loc = LocalizationManager.shared
     @State private var selectedCategory: AppCategory = .all
 
     private var filteredApps: [AppItem] {
         if selectedCategory == .all {
-            return viewModel.apps
+            return viewModel.displayedApps
         }
-        return viewModel.apps.filter { ($0.category ?? .tools) == selectedCategory }
+        return viewModel.displayedApps.filter { ($0.category ?? .tools) == selectedCategory }
     }
 
     var body: some View {
@@ -55,7 +55,7 @@ struct StoreHomeView: View {
                 .padding(.top, 10)
                 .padding(.bottom, 12)
 
-                // التصنيفات
+                // شريط التصنيفات
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 10) {
                         ForEach(AppCategory.allCases, id: \.self) { category in
@@ -86,7 +86,7 @@ struct StoreHomeView: View {
                 }
 
                 // عرض التطبيقات
-                if viewModel.isLoading {
+                if viewModel.isLoading && viewModel.allApps.isEmpty {
                     Spacer()
                     ProgressView()
                         .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.vibrantBlue))
@@ -107,6 +107,9 @@ struct StoreHomeView: View {
                         LazyVStack(spacing: 12) {
                             ForEach(filteredApps) { app in
                                 AppCardView(app: app)
+                                    .onAppear {
+                                        viewModel.loadMoreIfNeeded(currentItem: app)
+                                    }
                             }
                         }
                         .padding(.horizontal)
