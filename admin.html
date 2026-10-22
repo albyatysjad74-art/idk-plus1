@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة إدارة تطبيقات المتجر</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #0b0f19; color: #fff; padding: 20px; margin: 0; }
+        .container { max-width: 500px; margin: auto; background: #161e2e; padding: 25px; border-radius: 16px; border: 1px solid #283548; }
+        h2 { text-align: center; color: #007aff; margin-top: 0; }
+        label { display: block; margin: 12px 0 4px; font-size: 13px; color: #8fa0b5; font-weight: bold; }
+        input, select, textarea { width: 100%; padding: 12px; box-sizing: border-box; background: #0b0f19; border: 1px solid #283548; color: #fff; border-radius: 8px; font-size: 14px; outline: none; }
+        input:focus, textarea:focus, select:focus { border-color: #007aff; }
+        button { width: 100%; margin-top: 20px; padding: 14px; background: #007aff; color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; }
+        button:hover { background: #0063cc; }
+        .status { margin-top: 15px; padding: 12px; border-radius: 8px; font-size: 13px; text-align: center; display: none; }
+        .success { background: #103823; color: #4ade80; }
+        .error { background: #3c1414; color: #f87171; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>إضافة تطبيق إلى المتجر</h2>
+
+    <label>GitHub Personal Access Token (Classic)</label>
+    <input type="password" id="ghToken" placeholder="ghp_xxxxxxxxxxxx" />
+
+    <label>مسار المستودع (Username/Repo)</label>
+    <input type="text" id="repoPath" placeholder="albyatysjad74-art/idk-plus1" value="albyatysjad74-art/idk-plus1" />
+
+    <hr style="border: 0; border-top: 1px solid #283548; margin: 20px 0;">
+
+    <label>اسم التطبيق</label>
+    <input type="text" id="appName" placeholder="مثال: TikTok Plus" required />
+
+    <label>معرف الحزمة (Bundle ID)</label>
+    <input type="text" id="bundleId" placeholder="مثال: com.zhiliaoapp.musically" required />
+
+    <label>الإصدار</label>
+    <input type="text" id="appVersion" placeholder="مثال: 34.1.0" value="1.0" />
+
+    <label>التصنيف</label>
+    <select id="appCategory">
+        <option value="social">سوشيال ميديا (social)</option>
+        <option value="games">ألعاب (games)</option>
+        <option value="tools">أدوات (tools)</option>
+        <option value="tweaks">تطبيقات بلس (tweaks)</option>
+    </select>
+
+    <label>رابط الأيقونة (PNG/JPG)</label>
+    <input type="url" id="iconUrl" placeholder="https://..." required />
+
+    <label>رابط الـ IPA المباشر</label>
+    <input type="url" id="ipaUrl" placeholder="https://.../app.ipa" required />
+
+    <label>الوصف</label>
+    <textarea id="appDesc" rows="3" placeholder="اكتب نبذة عن ميزات التطبيق..."></textarea>
+
+    <button onclick="addAppToRepo()">حفظ وإضافة إلى apps.json</button>
+
+    <div id="statusBox" class="status"></div>
+</div>
+
+<script>
+    // استرجاع التوكن المحفوظ محلياً للتسهيل
+    document.getElementById('ghToken').value = localStorage.getItem('gh_token') || '';
+
+    async function addAppToRepo() {
+        const token = document.getElementById('ghToken').value.trim();
+        const repo = document.getElementById('repoPath').value.trim();
+        const name = document.getElementById('appName').value.trim();
+        const id = document.getElementById('bundleId').value.trim();
+        const version = document.getElementById('appVersion').value.trim();
+        const category = document.getElementById('appCategory').value;
+        const icon = document.getElementById('iconUrl').value.trim();
+        const ipaUrl = document.getElementById('ipaUrl').value.trim();
+        const desc = document.getElementById('appDesc').value.trim();
+        const statusBox = document.getElementById('statusBox');
+
+        if (!token || !repo || !name || !ipaUrl) {
+            showStatus("يرجى ملء الحقول الإلزامية والتوكن.", false);
+            return;
+        }
+
+        localStorage.setItem('gh_token', token);
+        showStatus("جاري الاتصال بـ GitHub وتحديث البيانات...", true);
+
+        // إنشاء رابط التثبيت المباشر بالـ OTA
+        const encodedIPA = encodeURIComponent(ipaUrl);
+        const encodedName = encodeURIComponent(name);
+        const installUrl = `itms-services://?action=download-manifest&url=https://api.palera.in/install?url=${encodedIPA}&name=${encodedName}&bundle=${encodeURIComponent(id)}`;
+
+        const newApp = {
+            id: id || ("app." + Date.now()),
+            name: name,
+            version: version || "1.0",
+            description: desc || "تطبيق مخصص جاهز للتثبيت.",
+            icon: icon,
+            url: installUrl,
+            category: category
+        };
+
+        try {
+            // 1. جلب ملف apps.json الحالي من المستودع
+            const fileUrl = `https://api.github.com/repos/${repo}/contents/apps.json`;
+            const getRes = await fetch(fileUrl, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            let currentApps = [];
+            let sha = "";
+
+            if (getRes.status === 200) {
+                const data = await getRes.json();
+                sha = data.sha;
+                const contentStr = decodeURIComponent(escape(atob(data.content)));
+                currentApps = JSON.parse(contentStr);
+            } else if (getRes.status === 404) {
+                currentApps = []; // الملف غير موجود بعد
+            } else {
+                throw new Error("فشل الوصول إلى المستودع. تأكد من التوكن وصلاحيات repo.");
+            }
+
+            // 2. إضافة التطبيق الجديد في مقدمة القائمة
+            currentApps.unshift(newApp);
+
+            // 3. إعادة رفع وتحديث الملف على GitHub
+            const updatedContentBase64 = btoa(unescape(encodeURIComponent(JSON.stringify(currentApps, null, 2))));
+            const putRes = await fetch(fileUrl, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    message: `إضافة تطبيق ${name} عبر لوحة التحكم`,
+                    content: updatedContentBase64,
+                    sha: sha || undefined
+                })
+            });
+
+            if (putRes.ok) {
+                showStatus(`تمت إضافة "${name}" بنجاح وتحديث المتجر!`, true);
+                document.getElementById('appName').value = '';
+                document.getElementById('bundleId').value = '';
+                document.getElementById('ipaUrl').value = '';
+                document.getElementById('iconUrl').value = '';
+                document.getElementById('appDesc').value = '';
+            } else {
+                const errData = await putRes.json();
+                showStatus("خطأ أثناء الحفظ: " + (errData.message || "فشلت العملية"), false);
+            }
+        } catch (err) {
+            showStatus("حدث خطأ: " + err.message, false);
+        }
+    }
+
+    function showStatus(text, isSuccess) {
+        const box = document.getElementById('statusBox');
+        box.style.display = 'block';
+        box.className = 'status ' + (isSuccess ? 'success' : 'error');
+        box.textContent = text;
+    }
+</script>
+
+</body>
+</html>
