@@ -28,16 +28,31 @@ enum AppCategory: String, CaseIterable, Codable {
     }
 }
 
-struct ESignSourceResponse: Codable {
+// نموذج قراءة سورس ESign
+struct ESignSourceResponse: Decodable {
     let name: String?
     let identifier: String?
     let apps: [AppItem]?
 }
 
-struct AppItem: Identifiable, Codable {
-    var id: String
+// مفتاح فك ديناميكي لتفادي أي خطأ ترجمة في Swift
+struct DynamicCodingKey: CodingKey {
+    var stringValue: String
+    var intValue: Int?
+
+    init?(stringValue: String) {
+        self.stringValue = stringValue
+    }
+
+    init?(intValue: Int) {
+        self.intValue = intValue
+        self.stringValue = "\(intValue)"
+    }
+}
+
+struct AppItem: Identifiable, Decodable {
+    let id: String
     let name: String
-    let bundleIdentifier: String?
     let version: String
     let descriptionText: String?
     let iconURL: URL?
@@ -48,67 +63,72 @@ struct AppItem: Identifiable, Codable {
         if let desc = descriptionText, !desc.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return desc
         }
-        return "تطبيق مخصص جاهز للتثبيت المباشر بنسخة كاملة."
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case id, name, version, category
-        case bundleIdentifier, bundleID
-        case icon, iconURL, appIcon
-        case down, downloadURL, url, link
-        case description, localizedDescription, versionDescription, subtitle
+        return "تطبيق مخصص بصيغة IPA جاهز للتثبيت والاستخدام المباشر."
     }
 
     init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let container = try decoder.container(keyedBy: DynamicCodingKey.self)
 
-        self.name = try container.decodeIfPresent(String.self, forKey: .name) ?? "تطبيق بدون اسم"
-        self.version = try container.decodeIfPresent(String.self, forKey: .version) ?? "1.0"
-        self.bundleIdentifier = try container.decodeIfPresent(String.self, forKey: .bundleIdentifier)
-            ?? container.decodeIfPresent(String.self, forKey: .bundleID)
-        self.id = self.bundleIdentifier ?? UUID().uuidString
+        // 1. الاسم
+        let rawName = Self.decodeString(from: container, keys: ["name", "title"])
+        self.name = rawName ?? "تطبيق بدون اسم"
 
-        // 1. استخراج الوصف من أي مفتاح محتمل
-        self.descriptionText = try container.decodeIfPresent(String.self, forKey: .description)
-            ?? container.decodeIfPresent(String.self, forKey: .localizedDescription)
-            ?? container.decodeIfPresent(String.self, forKey: .versionDescription)
-            ?? container.decodeIfPresent(String.self, forKey: .subtitle)
+        // 2. الإصدار
+        self.version = Self.decodeString(from: container, keys: ["version", "appVersion"]) ?? "1.0"
 
-        // 2. استخراج الأيقونة ومعالجة المسافات
-        let iconString = try container.decodeIfPresent(String.self, forKey: .iconURL)
-            ?? container.decodeIfPresent(String.self, forKey: .icon)
-            ?? container.decodeIfPresent(String.self, forKey: .appIcon)
-        if let iconStr = iconString, let cleanStr = iconStr.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
-            self.iconURL = URL(string: cleanStr)
+        // 3. المعرف
+        let rawID = Self.decodeString(from: container, keys: ["bundleIdentifier", "bundleID", "id"])
+        self.id = rawID ?? UUID().uuidString
+
+        // 4. الوصف
+        self.descriptionText = Self.decodeString(from: container, keys: ["description", "desc", "localizedDescription", "versionDescription", "subtitle"])
+
+        // 5. رابط الأيقونة (مع معالجة الروابط التي تحتوي على مسافات)
+        if let iconRaw = Self.decodeString(from: container, keys: ["icon", "iconURL", "appIcon"]) {
+            self.iconURL = Self.cleanURL(iconRaw)
         } else {
             self.iconURL = nil
         }
 
-        // 3. استخراج رابط التنزيل المباشر ومعالجة المسافات
-        let downString = try container.decodeIfPresent(String.self, forKey: .downloadURL)
-            ?? container.decodeIfPresent(String.self, forKey: .down)
-            ?? container.decodeIfPresent(String.self, forKey: .url)
-            ?? container.decodeIfPresent(String.self, forKey: .link)
-        if let downStr = downString, let cleanDown = downStr.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
-            self.downloadURL = URL(string: cleanDown)
+        // 6. رابط التحميل (يدعم down و url و link وغيرها)
+        if let downRaw = Self.decodeString(from: container, keys: ["down", "downloadURL", "url", "link"]) {
+            self.downloadURL = Self.cleanURL(downRaw)
         } else {
             self.downloadURL = nil
         }
 
-        // 4. التصنيف التلقائي
-        if let cat = try container.decodeIfPresent(AppCategory.self, forKey: .category) {
-            self.category = cat
+        // 7. التصنيف التلقائي الذكي
+        let lower = name.lowercased()
+        if lower.contains("gta") || lower.contains("pubg") || lower.contains("craft") || lower.contains("game") || lower.contains("ride") || lower.contains("ball") || lower.contains("race") {
+            self.category = .games
+        } else if lower.contains("tik") || lower.contains("insta") || lower.contains("snap") || lower.contains("tele") || lower.contains("chat") || lower.contains("social") {
+            self.category = .social
+        } else if lower.contains("esign") || lower.contains("scarlet") || lower.contains("troll") || lower.contains("filza") || lower.contains("maker") || lower.contains("alarm") {
+            self.category = .tools
         } else {
-            let lower = name.lowercased()
-            if lower.contains("gta") || lower.contains("pubg") || lower.contains("craft") || lower.contains("game") || lower.contains("ride") || lower.contains("color") {
-                self.category = .games
-            } else if lower.contains("tik") || lower.contains("insta") || lower.contains("snap") || lower.contains("tele") || lower.contains("chat") {
-                self.category = .social
-            } else if lower.contains("esign") || lower.contains("scarlet") || lower.contains("troll") || lower.contains("filza") || lower.contains("maker") {
-                self.category = .tools
-            } else {
-                self.category = .tweaks
+            self.category = .tweaks
+        }
+    }
+
+    private static func decodeString(from container: KeyedDecodingContainer<DynamicCodingKey>, keys: [String]) -> String? {
+        for k in keys {
+            if let key = DynamicCodingKey(stringValue: k),
+               let val = try? container.decodeIfPresent(String.self, forKey: key),
+               !val.isEmpty {
+                return val
             }
         }
+        return nil
+    }
+
+    private static func cleanURL(_ raw: String) -> URL? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let direct = URL(string: trimmed) {
+            return direct
+        }
+        if let encoded = trimmed.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+            return URL(string: encoded)
+        }
+        return nil
     }
 }
